@@ -15,10 +15,11 @@ const (
 )
 
 type Token struct {
-	kind TokenKind // Token kind
-	val  int       // If kind is TK_NUM, its value
-	loc  int       // Token location
-	len  int       // Token length
+	kind  TokenKind // Token kind
+	label string    // If kind is TK_RESERVED, its value
+	val   int       // If kind is TK_NUM, its value
+	loc   int       // Token location
+	len   int       // Token length
 }
 
 func isDigit(c byte) bool {
@@ -28,8 +29,25 @@ func isDigit(c byte) bool {
 	return false
 }
 
+func isLetter(c byte) bool {
+	if 'A' <= c && c <= 'Z' || 'a' <= c && c <= 'z' {
+		return true
+	}
+	return false
+}
+
 func isSpace(c byte) bool {
 	if c == ' ' || c == '	' {
+		return true
+	}
+	return false
+}
+
+func isPunct(c byte) bool {
+	if isDigit(c) || isLetter(c) {
+		return false
+	}
+	if '!' <= c && c <= '~' {
 		return true
 	}
 	return false
@@ -48,6 +66,7 @@ func tokenize(code string) []Token {
 			i++
 			continue
 		}
+
 		// Numeric literal
 		if isDigit(code[i]) {
 			token := Token{kind: TK_NUM, loc: i}
@@ -64,6 +83,18 @@ func tokenize(code string) []Token {
 			i += j
 			continue
 		}
+
+		// Single-letter punctuators
+		if isPunct(code[i]) {
+			if code[i] == '+' || code[i] == '-' {
+				token := Token{kind: TK_RESERVED, label: string(code[i]), loc: i, len: 1}
+				tokens = append(tokens, token)
+			} else {
+				panic("認識できません")
+			}
+			i++
+			continue
+		}
 		panic("不正な文字")
 	}
 	eof_token := Token{kind: TK_EOF, loc: i}
@@ -77,10 +108,35 @@ func codegen(tokens []Token) {
 		panic("数字で始まっていない")
 	}
 
+	i := 0
 	fmt.Printf(".intel_syntax noprefix\n")
 	fmt.Printf(".global main\n")
 	fmt.Printf("main:\n")
-	fmt.Printf("  mov rax, %d\n", tokens[0].val)
+	fmt.Printf("  mov rax, %d\n", tokens[i].val)
+	i++
+	for tokens[i].kind != TK_EOF {
+		if tokens[i].kind == TK_RESERVED && tokens[i].label == "+" {
+			i++
+			if tokens[i].kind != TK_NUM {
+				panic("+の後が数字じゃない")
+			}
+			fmt.Printf("  add rax, %d\n", tokens[i].val)
+			i++
+			continue
+		}
+
+		if tokens[i].kind == TK_RESERVED && tokens[i].label == "-" {
+			i++
+			if tokens[i].kind != TK_NUM {
+				panic("-の後が数字じゃない")
+			}
+			fmt.Printf("  sub rax, %d\n", tokens[i].val)
+			i++
+			continue
+		}
+		panic("不正なトークン")
+	}
+
 	fmt.Printf("  ret\n")
 }
 
