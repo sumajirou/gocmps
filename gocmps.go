@@ -28,6 +28,13 @@ func isDigit(c byte) bool {
 	return false
 }
 
+func isSpace(c byte) bool {
+	if c == ' ' || c == '	' {
+		return true
+	}
+	return false
+}
+
 func tokenize(code string) []Token {
 	if len(code) == 0 {
 		panic("コードが空文字列")
@@ -36,6 +43,11 @@ func tokenize(code string) []Token {
 	tokens := []Token{}
 	i := 0 // codeのインデックス
 	for i < len(code) {
+		// Skip whitespace characters.
+		if isSpace(code[i]) {
+			i++
+			continue
+		}
 		// Numeric literal
 		if isDigit(code[i]) {
 			token := Token{kind: TK_NUM, loc: i}
