@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type TokenKind int
@@ -53,9 +54,25 @@ func isPunct(c byte) bool {
 	return false
 }
 
+func verror_at(code string, loc int, fmtstr string, ap ...any) {
+	// TODO: ファイル名とスコープ ファイル名と行数と文字数エラー内容 エラー位置表示
+	fmt.Fprintln(os.Stderr, code)
+	fmt.Fprint(os.Stderr, strings.Repeat(" ", loc)+"^ ")
+	fmt.Fprintf(os.Stderr, fmtstr+"\n", ap...)
+	os.Exit(1)
+}
+
+func error_at(code string, loc int, fmtstr string, ap ...any) {
+	verror_at(code, loc, fmtstr, ap...)
+}
+
+func error_tok(code string, token Token, fmtstr string, ap ...any) {
+	verror_at(code, token.loc, fmtstr, ap...)
+}
+
 func tokenize(code string) []Token {
 	if len(code) == 0 {
-		panic("コードが空文字列")
+		error_at(code, 0, "コードが空文字列です")
 	}
 
 	tokens := []Token{}
@@ -69,16 +86,14 @@ func tokenize(code string) []Token {
 
 		// Numeric literal
 		if isDigit(code[i]) {
-			token := Token{kind: TK_NUM, loc: i}
 			j := 0
 			for ; i+j < len(code) && isDigit(code[i+j]); j++ {
 			}
 			value, err := strconv.Atoi(code[i : i+j])
 			if err != nil {
-				panic("引数が数値ではありません。")
+				error_at(code, i, "引数が数値ではありません")
 			}
-			token.val = value
-			token.len = j
+			token := Token{kind: TK_NUM, val: value, loc: i, len: j}
 			tokens = append(tokens, token)
 			i += j
 			continue
@@ -90,12 +105,12 @@ func tokenize(code string) []Token {
 				token := Token{kind: TK_RESERVED, label: string(code[i]), loc: i, len: 1}
 				tokens = append(tokens, token)
 			} else {
-				panic("認識できません")
+				error_at(code, i, "%vは認識できません", string(code[i]))
 			}
 			i++
 			continue
 		}
-		panic("不正な文字")
+		error_at(code, i, "%vは認識できません", string(code[i]))
 	}
 	eof_token := Token{kind: TK_EOF, loc: i}
 	tokens = append(tokens, eof_token)
@@ -103,12 +118,12 @@ func tokenize(code string) []Token {
 	return tokens
 }
 
-func codegen(tokens []Token) {
-	if tokens[0].kind != TK_NUM {
-		panic("数字で始まっていない")
+func codegen(code string, tokens []Token) {
+	i := 0
+	if tokens[i].kind != TK_NUM {
+		error_tok(code, tokens[i], "数字で始まっていません")
 	}
 
-	i := 0
 	fmt.Printf(".intel_syntax noprefix\n")
 	fmt.Printf(".global main\n")
 	fmt.Printf("main:\n")
@@ -118,7 +133,7 @@ func codegen(tokens []Token) {
 		if tokens[i].kind == TK_RESERVED && tokens[i].label == "+" {
 			i++
 			if tokens[i].kind != TK_NUM {
-				panic("+の後が数字じゃない")
+				error_tok(code, tokens[i], "+の後が数字ではありません")
 			}
 			fmt.Printf("  add rax, %d\n", tokens[i].val)
 			i++
@@ -128,13 +143,13 @@ func codegen(tokens []Token) {
 		if tokens[i].kind == TK_RESERVED && tokens[i].label == "-" {
 			i++
 			if tokens[i].kind != TK_NUM {
-				panic("-の後が数字じゃない")
+				error_tok(code, tokens[i], "-の後が数字ではありません")
 			}
 			fmt.Printf("  sub rax, %d\n", tokens[i].val)
 			i++
 			continue
 		}
-		panic("不正なトークン")
+		error_tok(code, tokens[i], "不正なトークンです")
 	}
 
 	fmt.Printf("  ret\n")
@@ -142,10 +157,11 @@ func codegen(tokens []Token) {
 
 func main() {
 	if len(os.Args) != 2 {
-		panic("引数の個数が正しくありません")
+		fmt.Fprintln(os.Stderr, "引数の個数が正しくありません")
+		os.Exit(1)
 	}
 
 	code := os.Args[1]
 	tokens := tokenize(code)
-	codegen(tokens)
+	codegen(code, tokens)
 }
