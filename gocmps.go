@@ -38,7 +38,7 @@ func isLetter(c byte) bool {
 }
 
 func isSpace(c byte) bool {
-	if c == ' ' || c == '	' {
+	if c == ' ' || c == '\n' || c == '\r' {
 		return true
 	}
 	return false
@@ -91,7 +91,7 @@ func tokenize(code string) []Token {
 			}
 			value, err := strconv.Atoi(code[i : i+j])
 			if err != nil {
-				error_at(code, i, "引数が数値ではありません")
+				error_at(code, i, "引数が数値ではありません(unreachable)")
 			}
 			token := Token{kind: TK_NUM, val: value, loc: i, len: j}
 			tokens = append(tokens, token)
@@ -101,12 +101,8 @@ func tokenize(code string) []Token {
 
 		// Single-letter punctuators
 		if isPunct(code[i]) {
-			if code[i] == '+' || code[i] == '-' {
-				token := Token{kind: TK_RESERVED, label: string(code[i]), loc: i, len: 1}
-				tokens = append(tokens, token)
-			} else {
-				error_at(code, i, "%vは認識できません", string(code[i]))
-			}
+			token := Token{kind: TK_RESERVED, label: string(code[i]), loc: i, len: 1}
+			tokens = append(tokens, token)
 			i++
 			continue
 		}
