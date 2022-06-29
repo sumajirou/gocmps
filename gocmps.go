@@ -132,45 +132,81 @@ type Node struct {
 	val  int      // Used if king == ND_NUM
 }
 
-// expr = num ("+" num | "-" num)*
-// expr = num | expr "+" num | expr "-" num
+// expr    = mul ("+" mul | "-" mul)*
+// mul     = primary ("*" primary | "/" primary)*
+// primary = num | "(" expr ")"
 // num = ( "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ) ( "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" )*
+
 func num(code string, tokens []Token) (*Node, []Token) {
 	node := &Node{kind: ND_NUM, val: tokens[0].val}
 	return node, tokens[1:]
 }
 
+// expr = mul | expr "+" mul | expr "-" mul
 func expr(code string, tokens []Token) (*Node, []Token) {
 	var node *Node
-	if tokens[0].kind != TK_NUM {
-		error_tok(code, tokens[0], "exprが数字で始まっていません")
-	}
-	node, tokens = num(code, tokens)
-	for tokens[0].kind != TK_EOF {
+	node, tokens = mul(code, tokens)
+	for {
 		if tokens[0].label == "+" {
 			tokens = tokens[1:]
-			if tokens[0].kind != TK_NUM {
-				error_tok(code, tokens[0], "+の後が数字ではありません")
-			}
 			var lhs, rhs *Node
 			lhs = node
-			rhs, tokens = num(code, tokens)
+			rhs, tokens = mul(code, tokens)
 			node = &Node{kind: ND_ADD, lhs: lhs, rhs: rhs}
 			continue
 		}
 		if tokens[0].label == "-" {
 			tokens = tokens[1:]
-			if tokens[0].kind != TK_NUM {
-				error_tok(code, tokens[0], "-の後が数字ではありません")
-			}
 			var lhs, rhs *Node
 			lhs = node
-			rhs, tokens = num(code, tokens)
+			rhs, tokens = mul(code, tokens)
 			node = &Node{kind: ND_SUB, lhs: lhs, rhs: rhs}
 			continue
 		}
-		error_tok(code, tokens[0], "余計なトークンがあります")
+		return node, tokens
 	}
+}
+
+// mul  = primary | mul "*" primary | mul "/" primary
+func mul(code string, tokens []Token) (*Node, []Token) {
+	var node *Node
+	node, tokens = primary(code, tokens)
+	for {
+		if tokens[0].label == "*" {
+			tokens = tokens[1:]
+			var lhs, rhs *Node
+			lhs = node
+			rhs, tokens = primary(code, tokens)
+			node = &Node{kind: ND_MUL, lhs: lhs, rhs: rhs}
+			continue
+		}
+		if tokens[0].label == "/" {
+			tokens = tokens[1:]
+			var lhs, rhs *Node
+			lhs = node
+			rhs, tokens = primary(code, tokens)
+			node = &Node{kind: ND_DIV, lhs: lhs, rhs: rhs}
+			continue
+		}
+		return node, tokens
+	}
+}
+
+// primary = num | "(" expr ")"
+func primary(code string, tokens []Token) (*Node, []Token) {
+	if tokens[0].kind == TK_NUM {
+		return num(code, tokens)
+	}
+	if tokens[0].label != "(" {
+		error_tok(code, tokens[0], "不正なトークンです")
+	}
+	tokens = tokens[1:]
+	var node *Node
+	node, tokens = expr(code, tokens)
+	if tokens[0].label != ")" {
+		error_tok(code, tokens[0], "括弧が閉じられていません")
+	}
+	tokens = tokens[1:]
 	return node, tokens
 }
 
@@ -189,6 +225,11 @@ func gen_expr(node *Node) {
 		fmt.Printf("  add rax, rdi\n")
 	case ND_SUB:
 		fmt.Printf("  sub rax, rdi\n")
+	case ND_MUL:
+		fmt.Printf("  imul rax, rdi\n")
+	case ND_DIV:
+		fmt.Printf("  cqo\n")
+		fmt.Printf("  idiv rdi\n")
 	default:
 		panic("コード生成できません")
 	}
