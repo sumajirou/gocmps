@@ -118,39 +118,94 @@ func tokenize(code string) []Token {
 	return tokens
 }
 
-func codegen(code string, tokens []Token) {
-	i := 0
-	if tokens[i].kind != TK_NUM {
-		error_tok(code, tokens[i], "数字で始まっていません")
+// Parser
+type NodeKind int
+
+const (
+	ND_ADD NodeKind = iota // +
+	ND_SUB                 // -
+	ND_MUL                 // *
+	ND_DIV                 // /
+	ND_NUM                 // Integer
+)
+
+type Node struct {
+	kind NodeKind // Node kind
+	lhs  *Node    // Left-hand side
+	rhs  *Node    // Right-hand side
+	val  int      // Used if king == ND_NUM
+}
+
+// expr = num ("+" num | "-" num)*
+// expr = num | expr "+" num | expr "-" num
+// num = ( "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ) ( "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" )*
+func num(code string, tokens []Token) (*Node, []Token) {
+	node := &Node{kind: ND_NUM, val: tokens[0].val}
+	return node, tokens[1:]
+}
+
+func expr(code string, tokens []Token) (*Node, []Token) {
+	var node *Node
+	if tokens[0].kind != TK_NUM {
+		error_tok(code, tokens[0], "exprが数字で始まっていません")
+	}
+	node, tokens = num(code, tokens)
+	for tokens[0].kind != TK_EOF {
+		if tokens[0].label == "+" {
+			tokens = tokens[1:]
+			if tokens[0].kind != TK_NUM {
+				error_tok(code, tokens[0], "+の後が数字ではありません")
+			}
+			var lhs, rhs *Node
+			lhs = node
+			rhs, tokens = num(code, tokens)
+			node = &Node{kind: ND_ADD, lhs: lhs, rhs: rhs}
+			continue
+		}
+		if tokens[0].label == "-" {
+			tokens = tokens[1:]
+			if tokens[0].kind != TK_NUM {
+				error_tok(code, tokens[0], "-の後が数字ではありません")
+			}
+			var lhs, rhs *Node
+			lhs = node
+			rhs, tokens = num(code, tokens)
+			node = &Node{kind: ND_SUB, lhs: lhs, rhs: rhs}
+			continue
+		}
+		error_tok(code, tokens[0], "余計なトークンがあります")
+	}
+	return node, tokens
+}
+
+func gen_expr(node *Node) {
+	if node.kind == ND_NUM {
+		fmt.Printf("  push %d\n", node.val)
+		return
 	}
 
+	gen_expr(node.lhs)
+	gen_expr(node.rhs)
+	fmt.Printf("  pop rdi\n")
+	fmt.Printf("  pop rax\n")
+	switch node.kind {
+	case ND_ADD:
+		fmt.Printf("  add rax, rdi\n")
+	case ND_SUB:
+		fmt.Printf("  sub rax, rdi\n")
+	default:
+		panic("コード生成できません")
+	}
+	fmt.Printf("  push rax\n")
+}
+
+func codegen(code string, node *Node) {
 	fmt.Printf(".intel_syntax noprefix\n")
 	fmt.Printf(".global main\n")
 	fmt.Printf("main:\n")
-	fmt.Printf("  mov rax, %d\n", tokens[i].val)
-	i++
-	for tokens[i].kind != TK_EOF {
-		if tokens[i].kind == TK_RESERVED && tokens[i].label == "+" {
-			i++
-			if tokens[i].kind != TK_NUM {
-				error_tok(code, tokens[i], "+の後が数字ではありません")
-			}
-			fmt.Printf("  add rax, %d\n", tokens[i].val)
-			i++
-			continue
-		}
 
-		if tokens[i].kind == TK_RESERVED && tokens[i].label == "-" {
-			i++
-			if tokens[i].kind != TK_NUM {
-				error_tok(code, tokens[i], "-の後が数字ではありません")
-			}
-			fmt.Printf("  sub rax, %d\n", tokens[i].val)
-			i++
-			continue
-		}
-		error_tok(code, tokens[i], "不正なトークンです")
-	}
+	gen_expr(node)
+	fmt.Printf("  pop rax\n")
 
 	fmt.Printf("  ret\n")
 }
@@ -163,5 +218,13 @@ func main() {
 
 	code := os.Args[1]
 	tokens := tokenize(code)
-	codegen(code, tokens)
+	node, tokens := expr(code, tokens)
+	if len(tokens) == 0 {
+		fmt.Fprintln(os.Stderr, "EOFが見つかりません")
+	}
+	if tokens[0].kind != TK_EOF {
+		error_tok(code, tokens[0], "構文解析に失敗しています")
+	}
+
+	codegen(code, node)
 }
