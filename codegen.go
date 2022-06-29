@@ -4,7 +4,7 @@ import "fmt"
 
 func gen_expr(node *Node) {
 	if node.kind == ND_NUM {
-		fmt.Printf("  push %d\n", node.val)
+		fmt.Printf("  push %s\n", node.val)
 		return
 	}
 

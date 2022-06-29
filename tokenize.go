@@ -1,7 +1,5 @@
 package main
 
-import "strconv"
-
 type TokenKind int
 
 const (
@@ -11,11 +9,10 @@ const (
 )
 
 type Token struct {
-	kind  TokenKind // Token kind
-	label string    // If kind is TK_RESERVED, its value
-	val   int       // If kind is TK_NUM, its value
-	loc   int       // Token location
-	len   int       // Token length
+	kind TokenKind // Token kind
+	val  string    // token value
+	loc  int       // Token location
+	len  int       // Token length
 }
 
 func isDigit(c byte) bool {
@@ -33,7 +30,7 @@ func isLetter(c byte) bool {
 }
 
 func isSpace(c byte) bool {
-	if c == ' ' || c == '\n' || c == '\r' {
+	if c == ' ' || c == '\t' || c == '\n' || c == '\r' {
 		return true
 	}
 	return false
@@ -68,11 +65,7 @@ func tokenize(code string) []Token {
 			j := 0
 			for ; i+j < len(code) && isDigit(code[i+j]); j++ {
 			}
-			value, err := strconv.Atoi(code[i : i+j])
-			if err != nil {
-				error_at(code, i, "引数が数値ではありません(unreachable)")
-			}
-			token := Token{kind: TK_NUM, val: value, loc: i, len: j}
+			token := Token{kind: TK_NUM, val: code[i : i+j], loc: i, len: j}
 			tokens = append(tokens, token)
 			i += j
 			continue
@@ -80,7 +73,7 @@ func tokenize(code string) []Token {
 
 		// Single-letter punctuators
 		if isPunct(code[i]) {
-			token := Token{kind: TK_RESERVED, label: string(code[i]), loc: i, len: 1}
+			token := Token{kind: TK_RESERVED, val: string(code[i]), loc: i, len: 1}
 			tokens = append(tokens, token)
 			i++
 			continue
