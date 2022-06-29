@@ -1,5 +1,5 @@
-gocmps: gocmps.go
-	go build gocmps.go
+gocmps: *.go
+	go build -o gocmps *.go
 
 test: gocmps
 	./test.sh
