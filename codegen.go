@@ -43,14 +43,24 @@ func gen_expr(node *Node) {
 	}
 	fmt.Printf("  push rax\n")
 }
+func gen_stmt(node *Node) {
+	switch node.kind {
+	case ND_EXPR_STMT:
+		gen_expr(node.lhs)
+		fmt.Printf("  pop rax\n")
+	default:
+		panic("コード生成できません")
+	}
+}
 
-func codegen(node *Node) {
+func codegen(nodes []*Node) {
 	fmt.Printf(".intel_syntax noprefix\n")
 	fmt.Printf(".global main\n")
 	fmt.Printf("main:\n")
 
-	gen_expr(node)
-	fmt.Printf("  pop rax\n")
+	for _, node := range nodes {
+		gen_stmt(node)
+	}
 
 	fmt.Printf("  ret\n")
 }

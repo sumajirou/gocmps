@@ -4,6 +4,7 @@ type TokenKind int
 
 const (
 	TK_RESERVED TokenKind = iota // Keywords or punctuators
+	TK_IDENT                     // Identifier
 	TK_NUM                       // Numeric literals
 	TK_EOF                       // End-of-file markers
 )
@@ -15,7 +16,7 @@ type Token struct {
 }
 type Tokenizer struct {
 	code   string
-	tokens []Token
+	tokens []*Token
 	i      int
 }
 
@@ -76,9 +77,24 @@ func (tn *Tokenizer) startswith(s string) bool {
 	return tn.code[tn.i:tn.i+n] == s
 }
 
-func (tn Tokenizer) tokenize() []Token {
+func (tn *Tokenizer) tokenize() []*Token {
 	for tn.i < len(tn.code) {
 		c := tn.peek(1)[0]
+
+		// Add semicolon before newline
+		if c == '\n' {
+			//行の最後のトークンが以下のいずれかの場合，その後ろにセミコロンが自動的に挿入される．(識別子, 整数リテラル，浮動小数点リテラル， 虚数リテラル，ルーンリテラル，文字列リテラル,break, continue, fallthrough, return,++, --, ), ], } )
+			// 改行の前にセミコロンを挿入する。浮動小数点リテラル， 虚数リテラル，ルーンリテラル，文字列リテラルが未実装(TODO)
+			tk := tn.tokens[len(tn.tokens)-1] // last token in line
+			if tk.kind == TK_NUM || tk.kind == TK_IDENT ||
+				tk.val == "break" || tk.val == "continue" || tk.val == "fallthrough" || tk.val == "return" ||
+				tk.val == "++" || tk.val == "--" || tk.val == ")" || tk.val == "]" || tk.val == "}" {
+				semicolon := &Token{kind: TK_RESERVED, loc: tn.i, val: ";"}
+				tn.tokens = append(tn.tokens, semicolon)
+			}
+			tn.read(1)
+			continue
+		}
 
 		// Skip whitespace characters.
 		if isSpace(c) {
@@ -88,7 +104,7 @@ func (tn Tokenizer) tokenize() []Token {
 
 		// Numeric literal
 		if isDigit(c) {
-			token := Token{kind: TK_NUM, loc: tn.i, val: tn.read(1)}
+			token := &Token{kind: TK_NUM, loc: tn.i, val: tn.read(1)}
 			for isDigit(tn.peek(1)[0]) {
 				token.val += tn.read(1)
 			}
@@ -98,21 +114,21 @@ func (tn Tokenizer) tokenize() []Token {
 
 		// Multi-letter punctuators
 		if tn.startswith("==") || tn.startswith("!=") || tn.startswith("<=") || tn.startswith(">=") {
-			token := Token{kind: TK_RESERVED, loc: tn.i, val: tn.read(2)}
+			token := &Token{kind: TK_RESERVED, loc: tn.i, val: tn.read(2)}
 			tn.tokens = append(tn.tokens, token)
 			continue
 		}
 
 		// Single-letter punctuators
 		if isPunct(c) {
-			token := Token{kind: TK_RESERVED, loc: tn.i, val: tn.read(1)}
+			token := &Token{kind: TK_RESERVED, loc: tn.i, val: tn.read(1)}
 			tn.tokens = append(tn.tokens, token)
 			continue
 		}
 
 		error_at(tn.code, tn.i, "%sは認識できません", string(c))
 	}
-	eof_token := Token{kind: TK_EOF, loc: tn.i}
+	eof_token := &Token{kind: TK_EOF, loc: tn.i}
 	tn.tokens = append(tn.tokens, eof_token)
 
 	return tn.tokens

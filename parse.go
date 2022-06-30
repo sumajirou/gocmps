@@ -3,15 +3,16 @@ package main
 type NodeKind int
 
 const (
-	ND_ADD NodeKind = iota // +
-	ND_SUB                 // -
-	ND_MUL                 // *
-	ND_DIV                 // /
-	ND_EQ                  // ==
-	ND_NE                  // !=
-	ND_LT                  // <
-	ND_LE                  // <=
-	ND_NUM                 // Integer
+	ND_ADD       NodeKind = iota // +
+	ND_SUB                       // -
+	ND_MUL                       // *
+	ND_DIV                       // /
+	ND_EQ                        // ==
+	ND_NE                        // !=
+	ND_LT                        // <
+	ND_LE                        // <=
+	ND_EXPR_STMT                 // Expression statement
+	ND_NUM                       // Integer
 )
 
 type Node struct {
@@ -20,20 +21,21 @@ type Node struct {
 	rhs  *Node    // Right-hand side
 	val  string   // Used if king == ND_NUM
 }
+
 type Parser struct {
 	code   string
-	tokens []Token
+	tokens []*Token
 	i      int
 }
 
-func (p *Parser) peek(n int) []Token {
+func (p *Parser) peek(n int) []*Token {
 	if p.i+n > len(p.tokens) {
 		return p.tokens[p.i:len(p.tokens)]
 	}
 	return p.tokens[p.i : p.i+n]
 }
 
-func (p *Parser) read(n int) []Token {
+func (p *Parser) read(n int) []*Token {
 	if p.i+n > len(p.tokens) {
 		result := p.tokens[p.i:len(p.tokens)]
 		p.i = len(p.tokens)
@@ -52,11 +54,30 @@ func (p *Parser) startsWithValue(s string) bool {
 	return p.tokens[p.i].val == s
 }
 
-func (p *Parser) parse() *Node {
-	return p.expr()
+func (p *Parser) parse() []*Node {
+	var nodes []*Node
+	for !p.startsWithTokenKind(TK_EOF) {
+		nodes = append(nodes, p.stmt())
+	}
+	return nodes
 }
 
 // 以下構文規則
+
+// stmt = exprStmt .
+func (p *Parser) stmt() *Node {
+	return p.exprStmt()
+}
+
+// exprStmt = expr ";" .
+func (p *Parser) exprStmt() *Node {
+	node := &Node{kind: ND_EXPR_STMT, lhs: p.expr()}
+	if !p.startsWithValue(";") {
+		error_tok(p.code, p.peek(1)[0], "不正なトークンです")
+	}
+	p.read(1)
+	return node
+}
 
 // expr = add { "==" add | "!=" add | "<" add | "<=" add | ">" add | ">=" add } .
 func (p *Parser) expr() *Node {
