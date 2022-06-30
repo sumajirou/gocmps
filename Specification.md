@@ -2,7 +2,8 @@
 
 ```ebnf
 expr    = mul { "+" mul | "-" mul } .
-mul     = primary { "*" primary | "/" primary } .
+mul     = unary { "*" unary | "/" unary } .
+unary   = primary | [ "+" | "-" ] unary .
 primary = num | "(" expr ")" .
 num     = digit { digit } .
 ```

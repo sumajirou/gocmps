@@ -76,22 +76,36 @@ func (p *Parser) expr() *Node {
 	}
 }
 
-// mul  = primary | mul "*" primary | mul "/" primary
+// mul  = unary | mul "*" unary | mul "/" unary
 func (p *Parser) mul() *Node {
-	node := p.primary()
+	node := p.unary()
 	for {
 		if p.startsWithValue("*") {
 			p.read(1)
-			node = &Node{kind: ND_MUL, lhs: node, rhs: p.primary()}
+			node = &Node{kind: ND_MUL, lhs: node, rhs: p.unary()}
 			continue
 		}
 		if p.startsWithValue("/") {
 			p.read(1)
-			node = &Node{kind: ND_DIV, lhs: node, rhs: p.primary()}
+			node = &Node{kind: ND_DIV, lhs: node, rhs: p.unary()}
 			continue
 		}
 		return node
 	}
+}
+
+// unary   = primary | [ "+" | "-" ] unary .
+func (p *Parser) unary() *Node {
+	if p.startsWithValue("+") {
+		p.read(1)
+		return p.unary()
+	}
+	if p.startsWithValue("-") {
+		p.read(1)
+		zero := &Node{kind: ND_NUM, val: "0"}
+		return &Node{kind: ND_SUB, lhs: zero, rhs: p.unary()}
+	}
+	return p.primary()
 }
 
 // primary = num | "(" expr ")"
