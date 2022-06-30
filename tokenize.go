@@ -130,6 +130,13 @@ func (tn *Tokenizer) tokenize() []*Token {
 			continue
 		}
 
+		// Single-letter local variables
+		if isLetter(c) {
+			token := &Token{kind: TK_IDENT, loc: tn.i, val: tn.read(1)}
+			tn.tokens = append(tn.tokens, token)
+			continue
+		}
+
 		// Single-letter punctuators
 		if isPunct(c) {
 			token := &Token{kind: TK_RESERVED, loc: tn.i, val: tn.read(1)}

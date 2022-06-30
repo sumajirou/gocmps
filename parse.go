@@ -3,24 +3,28 @@ package main
 type NodeKind int
 
 const (
-	ND_ADD       NodeKind = iota // +
-	ND_SUB                       // -
-	ND_MUL                       // *
-	ND_DIV                       // /
-	ND_EQ                        // ==
-	ND_NE                        // !=
-	ND_LT                        // <
-	ND_LE                        // <=
-	ND_RETURN                    // "return"
-	ND_EXPR_STMT                 // Expression statement
-	ND_NUM                       // Integer
+	ND_ADD         NodeKind = iota // +
+	ND_SUB                         // -
+	ND_MUL                         // *
+	ND_DIV                         // /
+	ND_EQ                          // ==
+	ND_NE                          // !=
+	ND_LT                          // <
+	ND_LE                          // <=
+	ND_ASSIGN_STMT                 // =
+	ND_RETURN_STMT                 // "return"
+	ND_EXPR_STMT                   // Expression statement
+	ND_VAR                         // Variable
+	ND_NUM                         // Integer
 )
 
 type Node struct {
-	kind NodeKind // Node kind
-	lhs  *Node    // Left-hand side
-	rhs  *Node    // Right-hand side
-	val  string   // Used if king == ND_NUM
+	kind   NodeKind // Node kind
+	token  *Token   // Token
+	lhs    *Node    // Left-hand side
+	rhs    *Node    // Right-hand side
+	val    string   // Used if king == ND_NUM
+	offset int      // kindがND_LVARの場合のみ使う
 }
 
 type Parser struct {
@@ -64,26 +68,31 @@ func (p *Parser) parse() []*Node {
 }
 
 // 以下構文規則
-
-// stmt = "return" expr ";" | exprStmt .
+// stmt = "return" expr ";" | assignStmt .
 func (p *Parser) stmt() *Node {
 	if p.startsWithValue("return") {
 		p.read(1)
-		node := &Node{kind: ND_RETURN, lhs: p.expr()}
+		node := &Node{kind: ND_RETURN_STMT, lhs: p.expr()}
 		if !p.startsWithValue(";") {
 			error_tok(p.code, p.peek(1)[0], "セミコロンが見つかりません")
 		}
 		p.read(1)
 		return node
 	}
-	return p.exprStmt()
+	return p.assignStmt()
 }
 
-// exprStmt = expr ";" .
-func (p *Parser) exprStmt() *Node {
-	node := &Node{kind: ND_EXPR_STMT, lhs: p.expr()}
+// assignStmt = expr [ "=" expr ] ";" .
+func (p *Parser) assignStmt() *Node {
+	lhs := p.expr()
+	node := &Node{kind: ND_EXPR_STMT, lhs: lhs}
+	if p.startsWithValue("=") {
+		p.read(1)
+		rhs := p.expr()
+		node = &Node{kind: ND_ASSIGN_STMT, lhs: lhs, rhs: rhs}
+	}
 	if !p.startsWithValue(";") {
-		error_tok(p.code, p.peek(1)[0], "不正なトークンです")
+		error_tok(p.code, p.peek(1)[0], "セミコロンが見つかりません")
 	}
 	p.read(1)
 	return node
@@ -177,10 +186,14 @@ func (p *Parser) unary() *Node {
 	return p.primary()
 }
 
-// primary = num | "(" expr ")" .
+// primary = num | ident | "(" expr ")" .
 func (p *Parser) primary() *Node {
 	if p.startsWithTokenKind(TK_NUM) {
 		return p.num()
+	}
+
+	if p.startsWithTokenKind(TK_IDENT) {
+		return p.ident()
 	}
 
 	if !p.startsWithValue("(") {
@@ -200,5 +213,13 @@ func (p *Parser) primary() *Node {
 
 // num = digit { digit } .
 func (p *Parser) num() *Node {
-	return &Node{kind: ND_NUM, val: p.read(1)[0].val}
+	token := p.read(1)[0]
+	return &Node{kind: ND_NUM, token: token, val: token.val}
+}
+
+// ident = letter .
+func (p *Parser) ident() *Node {
+	token := p.read(1)[0]
+	offset := int((token.val[0] - 'a' + 1) * 8)
+	return &Node{kind: ND_VAR, token: token, val: token.val, offset: offset}
 }

@@ -33,5 +33,6 @@ func main() {
 	tokens := tokenizer.tokenize()
 	parser := Parser{code: code, tokens: tokens}
 	nodes := parser.parse()
-	codegen(nodes)
+	codegen := Codegen{code: code, nodes: nodes}
+	codegen.codegen()
 }
