@@ -22,6 +22,22 @@ func gen_expr(node *Node) {
 	case ND_DIV:
 		fmt.Printf("  cqo\n")
 		fmt.Printf("  idiv rdi\n")
+	case ND_EQ:
+		fmt.Printf("  cmp rax, rdi\n")
+		fmt.Printf("  sete al\n")
+		fmt.Printf("  movzb rax, al\n")
+	case ND_NE:
+		fmt.Printf("  cmp rax, rdi\n")
+		fmt.Printf("  setne al\n")
+		fmt.Printf("  movzb rax, al\n")
+	case ND_LT:
+		fmt.Printf("  cmp rax, rdi\n")
+		fmt.Printf("  setl al\n")
+		fmt.Printf("  movzb rax, al\n")
+	case ND_LE:
+		fmt.Printf("  cmp rax, rdi\n")
+		fmt.Printf("  setle al\n")
+		fmt.Printf("  movzb rax, al\n")
 	default:
 		panic("コード生成できません")
 	}

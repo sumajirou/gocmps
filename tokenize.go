@@ -96,6 +96,13 @@ func (tn Tokenizer) tokenize() []Token {
 			continue
 		}
 
+		// Multi-letter punctuators
+		if tn.startswith("==") || tn.startswith("!=") || tn.startswith("<=") || tn.startswith(">=") {
+			token := Token{kind: TK_RESERVED, loc: tn.i, val: tn.read(2)}
+			tn.tokens = append(tn.tokens, token)
+			continue
+		}
+
 		// Single-letter punctuators
 		if isPunct(c) {
 			token := Token{kind: TK_RESERVED, loc: tn.i, val: tn.read(1)}

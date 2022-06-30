@@ -7,6 +7,10 @@ const (
 	ND_SUB                 // -
 	ND_MUL                 // *
 	ND_DIV                 // /
+	ND_EQ                  // ==
+	ND_NE                  // !=
+	ND_LT                  // <
+	ND_LE                  // <=
 	ND_NUM                 // Integer
 )
 
@@ -54,12 +58,46 @@ func (p *Parser) parse() *Node {
 
 // 以下構文規則
 
-func (p *Parser) num() *Node {
-	return &Node{kind: ND_NUM, val: p.read(1)[0].val}
+// expr = add { "==" add | "!=" add | "<" add | "<=" add | ">" add | ">=" add } .
+func (p *Parser) expr() *Node {
+	node := p.add()
+	for {
+		if p.startsWithValue("==") {
+			p.read(1)
+			node = &Node{kind: ND_EQ, lhs: node, rhs: p.add()}
+			continue
+		}
+		if p.startsWithValue("!=") {
+			p.read(1)
+			node = &Node{kind: ND_NE, lhs: node, rhs: p.add()}
+			continue
+		}
+		if p.startsWithValue("<") {
+			p.read(1)
+			node = &Node{kind: ND_LT, lhs: node, rhs: p.add()}
+			continue
+		}
+		if p.startsWithValue("<=") {
+			p.read(1)
+			node = &Node{kind: ND_LE, lhs: node, rhs: p.add()}
+			continue
+		}
+		if p.startsWithValue(">") {
+			p.read(1)
+			node = &Node{kind: ND_LT, lhs: p.add(), rhs: node}
+			continue
+		}
+		if p.startsWithValue(">=") {
+			p.read(1)
+			node = &Node{kind: ND_LE, lhs: p.add(), rhs: node}
+			continue
+		}
+		return node
+	}
 }
 
-// expr = mul | expr "+" mul | expr "-" mul
-func (p *Parser) expr() *Node {
+// add = mul { "+" mul | "-" mul } .
+func (p *Parser) add() *Node {
 	node := p.mul()
 	for {
 		if p.startsWithValue("+") {
@@ -76,7 +114,7 @@ func (p *Parser) expr() *Node {
 	}
 }
 
-// mul  = unary | mul "*" unary | mul "/" unary
+// mul = unary { "*" unary | "/" unary } .
 func (p *Parser) mul() *Node {
 	node := p.unary()
 	for {
@@ -94,7 +132,7 @@ func (p *Parser) mul() *Node {
 	}
 }
 
-// unary   = primary | [ "+" | "-" ] unary .
+// unary = primary | [ "+" | "-" ] unary .
 func (p *Parser) unary() *Node {
 	if p.startsWithValue("+") {
 		p.read(1)
@@ -108,7 +146,7 @@ func (p *Parser) unary() *Node {
 	return p.primary()
 }
 
-// primary = num | "(" expr ")"
+// primary = num | "(" expr ")" .
 func (p *Parser) primary() *Node {
 	if p.startsWithTokenKind(TK_NUM) {
 		return p.num()
@@ -127,4 +165,9 @@ func (p *Parser) primary() *Node {
 	p.read(1)
 
 	return node
+}
+
+// num = digit { digit } .
+func (p *Parser) num() *Node {
+	return &Node{kind: ND_NUM, val: p.read(1)[0].val}
 }
