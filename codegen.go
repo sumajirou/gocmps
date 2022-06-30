@@ -28,7 +28,7 @@ func gen_expr(node *Node) {
 	fmt.Printf("  push rax\n")
 }
 
-func codegen(code string, node *Node) {
+func codegen(node *Node) {
 	fmt.Printf(".intel_syntax noprefix\n")
 	fmt.Printf(".global main\n")
 	fmt.Printf("main:\n")

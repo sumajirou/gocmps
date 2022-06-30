@@ -12,7 +12,11 @@ type Token struct {
 	kind TokenKind // Token kind
 	val  string    // token value
 	loc  int       // Token location
-	len  int       // Token length
+}
+type Tokenizer struct {
+	code   string
+	tokens []Token
+	i      int
 }
 
 func isDigit(c byte) bool {
@@ -46,42 +50,63 @@ func isPunct(c byte) bool {
 	return false
 }
 
-func tokenize(code string) []Token {
-	if len(code) == 0 {
-		error_at(code, 0, "コードが空文字列です")
+func (tn *Tokenizer) peek(n int) string {
+	if tn.i+n > len(tn.code) {
+		return tn.code[tn.i:len(tn.code)]
 	}
+	return tn.code[tn.i : tn.i+n]
+}
 
-	tokens := []Token{}
-	i := 0 // codeのインデックス
-	for i < len(code) {
+func (tn *Tokenizer) read(n int) string {
+	if tn.i+n > len(tn.code) {
+		result := tn.code[tn.i:len(tn.code)]
+		tn.i = len(tn.code)
+		return result
+	}
+	result := tn.code[tn.i : tn.i+n]
+	tn.i += n
+	return result
+}
+
+func (tn *Tokenizer) startswith(s string) bool {
+	n := len(s)
+	if tn.i+n > len(tn.code) {
+		return false
+	}
+	return tn.code[tn.i:tn.i+n] == s
+}
+
+func (tn Tokenizer) tokenize() []Token {
+	for tn.i < len(tn.code) {
+		c := tn.peek(1)[0]
+
 		// Skip whitespace characters.
-		if isSpace(code[i]) {
-			i++
+		if isSpace(c) {
+			tn.read(1)
 			continue
 		}
 
 		// Numeric literal
-		if isDigit(code[i]) {
-			j := 0
-			for ; i+j < len(code) && isDigit(code[i+j]); j++ {
+		if isDigit(c) {
+			token := Token{kind: TK_NUM, loc: tn.i, val: tn.read(1)}
+			for isDigit(tn.peek(1)[0]) {
+				token.val += tn.read(1)
 			}
-			token := Token{kind: TK_NUM, val: code[i : i+j], loc: i, len: j}
-			tokens = append(tokens, token)
-			i += j
+			tn.tokens = append(tn.tokens, token)
 			continue
 		}
 
 		// Single-letter punctuators
-		if isPunct(code[i]) {
-			token := Token{kind: TK_RESERVED, val: string(code[i]), loc: i, len: 1}
-			tokens = append(tokens, token)
-			i++
+		if isPunct(c) {
+			token := Token{kind: TK_RESERVED, loc: tn.i, val: tn.read(1)}
+			tn.tokens = append(tn.tokens, token)
 			continue
 		}
-		error_at(code, i, "%vは認識できません", string(code[i]))
-	}
-	eof_token := Token{kind: TK_EOF, loc: i}
-	tokens = append(tokens, eof_token)
 
-	return tokens
+		error_at(tn.code, tn.i, "%sは認識できません", string(c))
+	}
+	eof_token := Token{kind: TK_EOF, loc: tn.i}
+	tn.tokens = append(tn.tokens, eof_token)
+
+	return tn.tokens
 }

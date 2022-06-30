@@ -16,76 +16,101 @@ type Node struct {
 	rhs  *Node    // Right-hand side
 	val  string   // Used if king == ND_NUM
 }
+type Parser struct {
+	code   string
+	tokens []Token
+	i      int
+}
 
-func num(code string, tokens []Token) (*Node, []Token) {
-	node := &Node{kind: ND_NUM, val: tokens[0].val}
-	return node, tokens[1:]
+func (p *Parser) peek(n int) []Token {
+	if p.i+n > len(p.tokens) {
+		return p.tokens[p.i:len(p.tokens)]
+	}
+	return p.tokens[p.i : p.i+n]
+}
+
+func (p *Parser) read(n int) []Token {
+	if p.i+n > len(p.tokens) {
+		result := p.tokens[p.i:len(p.tokens)]
+		p.i = len(p.tokens)
+		return result
+	}
+	result := p.tokens[p.i : p.i+n]
+	p.i += n
+	return result
+}
+
+func (p *Parser) startsWithTokenKind(kind TokenKind) bool {
+	return p.tokens[p.i].kind == kind
+}
+
+func (p *Parser) startsWithValue(s string) bool {
+	return p.tokens[p.i].val == s
+}
+
+func (p *Parser) parse() *Node {
+	return p.expr()
+}
+
+// 以下構文規則
+
+func (p *Parser) num() *Node {
+	return &Node{kind: ND_NUM, val: p.read(1)[0].val}
 }
 
 // expr = mul | expr "+" mul | expr "-" mul
-func expr(code string, tokens []Token) (*Node, []Token) {
-	var node *Node
-	node, tokens = mul(code, tokens)
+func (p *Parser) expr() *Node {
+	node := p.mul()
 	for {
-		if tokens[0].val == "+" {
-			tokens = tokens[1:]
-			var lhs, rhs *Node
-			lhs = node
-			rhs, tokens = mul(code, tokens)
-			node = &Node{kind: ND_ADD, lhs: lhs, rhs: rhs}
+		if p.startsWithValue("+") {
+			p.read(1)
+			node = &Node{kind: ND_ADD, lhs: node, rhs: p.mul()}
 			continue
 		}
-		if tokens[0].val == "-" {
-			tokens = tokens[1:]
-			var lhs, rhs *Node
-			lhs = node
-			rhs, tokens = mul(code, tokens)
-			node = &Node{kind: ND_SUB, lhs: lhs, rhs: rhs}
+		if p.startsWithValue("-") {
+			p.read(1)
+			node = &Node{kind: ND_SUB, lhs: node, rhs: p.mul()}
 			continue
 		}
-		return node, tokens
+		return node
 	}
 }
 
 // mul  = primary | mul "*" primary | mul "/" primary
-func mul(code string, tokens []Token) (*Node, []Token) {
-	var node *Node
-	node, tokens = primary(code, tokens)
+func (p *Parser) mul() *Node {
+	node := p.primary()
 	for {
-		if tokens[0].val == "*" {
-			tokens = tokens[1:]
-			var lhs, rhs *Node
-			lhs = node
-			rhs, tokens = primary(code, tokens)
-			node = &Node{kind: ND_MUL, lhs: lhs, rhs: rhs}
+		if p.startsWithValue("*") {
+			p.read(1)
+			node = &Node{kind: ND_MUL, lhs: node, rhs: p.primary()}
 			continue
 		}
-		if tokens[0].val == "/" {
-			tokens = tokens[1:]
-			var lhs, rhs *Node
-			lhs = node
-			rhs, tokens = primary(code, tokens)
-			node = &Node{kind: ND_DIV, lhs: lhs, rhs: rhs}
+		if p.startsWithValue("/") {
+			p.read(1)
+			node = &Node{kind: ND_DIV, lhs: node, rhs: p.primary()}
 			continue
 		}
-		return node, tokens
+		return node
 	}
 }
 
 // primary = num | "(" expr ")"
-func primary(code string, tokens []Token) (*Node, []Token) {
-	if tokens[0].kind == TK_NUM {
-		return num(code, tokens)
+func (p *Parser) primary() *Node {
+	if p.startsWithTokenKind(TK_NUM) {
+		return p.num()
 	}
-	if tokens[0].val != "(" {
-		error_tok(code, tokens[0], "不正なトークンです")
+
+	if !p.startsWithValue("(") {
+		error_tok(p.code, p.peek(1)[0], "不正なトークンです")
 	}
-	tokens = tokens[1:]
-	var node *Node
-	node, tokens = expr(code, tokens)
-	if tokens[0].val != ")" {
-		error_tok(code, tokens[0], "括弧が閉じられていません")
+	p.read(1)
+
+	node := p.expr()
+
+	if !p.startsWithValue(")") {
+		error_tok(p.code, p.peek(1)[0], "括弧が閉じられていません")
 	}
-	tokens = tokens[1:]
-	return node, tokens
+	p.read(1)
+
+	return node
 }

@@ -28,15 +28,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	code := os.Args[1]
-	tokens := tokenize(code)
-	node, tokens := expr(code, tokens)
-	if len(tokens) == 0 {
+	code := os.Args[1] + "\n" // ソースコードの終端が改行文字であることを保証
+	tokens := Tokenizer{code: code}.tokenize()
+	parser := Parser{code: code, tokens: tokens}
+	node := parser.parse()
+	if len(parser.tokens) == 0 {
 		fmt.Fprintln(os.Stderr, "EOFが見つかりません")
 	}
-	if tokens[0].kind != TK_EOF {
+	if !parser.startsWithTokenKind(TK_EOF) {
 		error_tok(code, tokens[0], "構文解析に失敗しています")
 	}
-
-	codegen(code, node)
+	codegen(node)
 }
