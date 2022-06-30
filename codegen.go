@@ -45,9 +45,14 @@ func gen_expr(node *Node) {
 }
 func gen_stmt(node *Node) {
 	switch node.kind {
-	case ND_EXPR_STMT:
+	case ND_RETURN:
 		gen_expr(node.lhs)
 		fmt.Printf("  pop rax\n")
+		fmt.Printf("  jmp .L.return\n")
+		return
+	case ND_EXPR_STMT:
+		gen_expr(node.lhs)
+		fmt.Printf("  pop rax\n") // スタックの値を捨てる
 	default:
 		panic("コード生成できません")
 	}
@@ -62,5 +67,6 @@ func codegen(nodes []*Node) {
 		gen_stmt(node)
 	}
 
+	fmt.Printf(".L.return:\n")
 	fmt.Printf("  ret\n")
 }

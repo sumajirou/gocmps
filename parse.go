@@ -11,6 +11,7 @@ const (
 	ND_NE                        // !=
 	ND_LT                        // <
 	ND_LE                        // <=
+	ND_RETURN                    // "return"
 	ND_EXPR_STMT                 // Expression statement
 	ND_NUM                       // Integer
 )
@@ -64,8 +65,17 @@ func (p *Parser) parse() []*Node {
 
 // 以下構文規則
 
-// stmt = exprStmt .
+// stmt = "return" expr ";" | exprStmt .
 func (p *Parser) stmt() *Node {
+	if p.startsWithValue("return") {
+		p.read(1)
+		node := &Node{kind: ND_RETURN, lhs: p.expr()}
+		if !p.startsWithValue(";") {
+			error_tok(p.code, p.peek(1)[0], "セミコロンが見つかりません")
+		}
+		p.read(1)
+		return node
+	}
 	return p.exprStmt()
 }
 

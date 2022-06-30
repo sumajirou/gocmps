@@ -28,10 +28,14 @@ func isDigit(c byte) bool {
 }
 
 func isLetter(c byte) bool {
-	if 'A' <= c && c <= 'Z' || 'a' <= c && c <= 'z' {
+	if 'A' <= c && c <= 'Z' || 'a' <= c && c <= 'z' || c == '_' {
 		return true
 	}
 	return false
+}
+
+func isAlnum(c byte) bool {
+	return isLetter(c) || isDigit(c)
 }
 
 func isSpace(c byte) bool {
@@ -108,6 +112,13 @@ func (tn *Tokenizer) tokenize() []*Token {
 			for isDigit(tn.peek(1)[0]) {
 				token.val += tn.read(1)
 			}
+			tn.tokens = append(tn.tokens, token)
+			continue
+		}
+
+		// Keywords
+		if tn.startswith("return") && !isAlnum(tn.code[tn.i+6]) {
+			token := &Token{kind: TK_RESERVED, loc: tn.i, val: tn.read(6)}
 			tn.tokens = append(tn.tokens, token)
 			continue
 		}

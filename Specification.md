@@ -1,7 +1,7 @@
 言語仕様
 
 ```ebnf
-stmt     = exprStmt .
+stmt     = "return" expr ";" | exprStmt .
 exprStmt = expr ";" .
 expr     = add { "==" add | "!=" add | "<" add | "<=" add | ">" add | ">=" add } .
 add      = mul { "+" mul | "-" mul } .
