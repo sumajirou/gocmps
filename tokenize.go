@@ -18,6 +18,7 @@ type Tokenizer struct {
 	code   string
 	tokens []*Token
 	i      int
+	lVar   map[string]int
 }
 
 func isDigit(c byte) bool {
@@ -82,6 +83,8 @@ func (tn *Tokenizer) startswith(s string) bool {
 }
 
 func (tn *Tokenizer) tokenize() []*Token {
+	tn.lVar = map[string]int{}
+	offset := 8
 	for tn.i < len(tn.code) {
 		c := tn.peek(1)[0]
 
@@ -123,16 +126,24 @@ func (tn *Tokenizer) tokenize() []*Token {
 			continue
 		}
 
-		// Multi-letter punctuators
-		if tn.startswith("==") || tn.startswith("!=") || tn.startswith("<=") || tn.startswith(">=") {
-			token := &Token{kind: TK_RESERVED, loc: tn.i, val: tn.read(2)}
+		// local variables
+		if isLetter(c) {
+			token := &Token{kind: TK_IDENT, loc: tn.i, val: tn.read(1)}
+			for isAlnum(tn.peek(1)[0]) {
+				token.val += tn.read(1)
+			}
 			tn.tokens = append(tn.tokens, token)
+			_, ok := tn.lVar[token.val]
+			if !ok {
+				tn.lVar[token.val] = offset
+				offset += 8
+			}
 			continue
 		}
 
-		// Single-letter local variables
-		if isLetter(c) {
-			token := &Token{kind: TK_IDENT, loc: tn.i, val: tn.read(1)}
+		// Multi-letter punctuators
+		if tn.startswith("==") || tn.startswith("!=") || tn.startswith("<=") || tn.startswith(">=") {
+			token := &Token{kind: TK_RESERVED, loc: tn.i, val: tn.read(2)}
 			tn.tokens = append(tn.tokens, token)
 			continue
 		}

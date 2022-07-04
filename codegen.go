@@ -5,6 +5,7 @@ import "fmt"
 type Codegen struct {
 	code  string
 	nodes []*Node
+	lVar  map[string]int
 }
 
 func (cg *Codegen) gen_lval(node *Node) {
@@ -22,10 +23,8 @@ func (cg *Codegen) gen_expr(node *Node) {
 		fmt.Printf("  push %s\n", node.val) // 整数リテラルをスタックに積む
 		return
 	case ND_VAR:
-		cg.gen_lval(node)         // 変数のアドレスをスタックに積む
-		fmt.Printf("  pop rax\n") // 変数のアドレスをポップ
-		// fmt.Printf("  mov rax, [rax]\n") // アドレスの値をraxに
-		// fmt.Printf("  push rax\n")       // 変数の値をスタックに積む
+		cg.gen_lval(node)            // 変数のアドレスをスタックに積む
+		fmt.Printf("  pop rax\n")    // 変数のアドレスをポップ
 		fmt.Printf("  push [rax]\n") // 変数の値をスタックに積む
 		return
 	}
@@ -92,10 +91,10 @@ func (cg *Codegen) codegen() {
 	fmt.Printf("main:\n")
 
 	// プロローグ
-	// 変数26個分の領域を確保する
+	// 変数の領域を確保する
 	fmt.Printf("  push rbp\n")
 	fmt.Printf("  mov rbp, rsp\n")
-	fmt.Printf("  sub rsp, 208\n")
+	fmt.Printf("  sub rsp, %d\n", len(cg.lVar)*8)
 
 	for _, node := range cg.nodes {
 		cg.gen_stmt(node) // 文を逐次実行

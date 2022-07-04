@@ -31,6 +31,7 @@ type Parser struct {
 	code   string
 	tokens []*Token
 	i      int
+	lVar   map[string]int
 }
 
 func (p *Parser) peek(n int) []*Token {
@@ -217,9 +218,9 @@ func (p *Parser) num() *Node {
 	return &Node{kind: ND_NUM, token: token, val: token.val}
 }
 
-// ident = letter .
+// ident = letter { alnum } .
 func (p *Parser) ident() *Node {
 	token := p.read(1)[0]
-	offset := int((token.val[0] - 'a' + 1) * 8)
+	offset := p.lVar[token.val]
 	return &Node{kind: ND_VAR, token: token, val: token.val, offset: offset}
 }

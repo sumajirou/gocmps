@@ -9,10 +9,11 @@ mul        = unary { "*" unary | "/" unary } .
 unary      = primary | [ "+" | "-" ] unary .
 primary    = num | ident | "(" expr ")" .
 num        = digit { digit } .
-ident      = letter .
+ident      = letter { alnum } .
 ```
 
 ```ebnf
 digit    = "0" … "9" .
 letter   = "A" … "Z" | "a" … "z" | "_" .
+alnum    = digit | letter
 ```
