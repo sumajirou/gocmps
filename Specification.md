@@ -1,15 +1,18 @@
 言語仕様
 
 ```ebnf
-stmt       = "return" expr ";" | assignStmt .
-assignStmt = expr [ "=" expr ] ";" .
-expr       = add { "==" add | "!=" add | "<" add | "<=" add | ">" add | ">=" add } .
-add        = mul { "+" mul | "-" mul } .
-mul        = unary { "*" unary | "/" unary } .
-unary      = primary | [ "+" | "-" ] unary .
-primary    = num | ident | "(" expr ")" .
-num        = digit { digit } .
-ident      = letter { alnum } .
+program       = block ";" .
+block         = "{" statementList "}" .
+statementList = { statement ";" } .
+statement     = "return" expr | block | assignStmt .
+assignStmt    = expr [ "=" expr ] .
+expr          = add { "==" add | "!=" add | "<" add | "<=" add | ">" add | ">=" add } .
+add           = mul { "+" mul | "-" mul } .
+mul           = unary { "*" unary | "/" unary } .
+unary         = primary | [ "+" | "-" ] unary .
+primary       = num | ident | "(" expr ")" .
+num           = digit { digit } .
+ident         = letter { alnum } .
 ```
 
 ```ebnf

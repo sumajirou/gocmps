@@ -13,6 +13,7 @@ const (
 	ND_LE                          // <=
 	ND_ASSIGN_STMT                 // =
 	ND_RETURN_STMT                 // "return"
+	ND_BLOCK                       // "{ ... }"
 	ND_EXPR_STMT                   // Expression statement
 	ND_VAR                         // Variable
 	ND_NUM                         // Integer
@@ -23,8 +24,9 @@ type Node struct {
 	token  *Token   // Token
 	lhs    *Node    // Left-hand side
 	rhs    *Node    // Right-hand side
+	block  []*Node  // Used if king == ND_BLOCK
 	val    string   // Used if king == ND_NUM
-	offset int      // kindがND_LVARの場合のみ使う
+	offset int      // Used if king == ND_VAR
 }
 
 type Parser struct {
@@ -60,43 +62,73 @@ func (p *Parser) startsWithValue(s string) bool {
 	return p.tokens[p.i].val == s
 }
 
-func (p *Parser) parse() []*Node {
-	var nodes []*Node
-	for !p.startsWithTokenKind(TK_EOF) {
-		nodes = append(nodes, p.stmt())
-	}
-	return nodes
-}
-
-// 以下構文規則
-// stmt = "return" expr ";" | assignStmt .
-func (p *Parser) stmt() *Node {
-	if p.startsWithValue("return") {
-		p.read(1)
-		node := &Node{kind: ND_RETURN_STMT, lhs: p.expr()}
-		if !p.startsWithValue(";") {
-			error_tok(p.code, p.peek(1)[0], "セミコロンが見つかりません")
-		}
-		p.read(1)
-		return node
-	}
-	return p.assignStmt()
-}
-
-// assignStmt = expr [ "=" expr ] ";" .
-func (p *Parser) assignStmt() *Node {
-	lhs := p.expr()
-	node := &Node{kind: ND_EXPR_STMT, lhs: lhs}
-	if p.startsWithValue("=") {
-		p.read(1)
-		rhs := p.expr()
-		node = &Node{kind: ND_ASSIGN_STMT, lhs: lhs, rhs: rhs}
-	}
+// program       = block ";" .
+func (p *Parser) parse() *Node {
+	node := p.block()
 	if !p.startsWithValue(";") {
 		error_tok(p.code, p.peek(1)[0], "セミコロンが見つかりません")
 	}
-	p.read(1)
+	p.read(1) // ";"をスキップ
+
+	if p.i == len(p.tokens) {
+		error_at(p.code, p.i, "EOFが見つかりません")
+	}
+	if !p.startsWithTokenKind(TK_EOF) {
+		error_tok(p.code, p.peek(1)[0], "EOFの前にトークンが残っています")
+	}
 	return node
+}
+
+// 以下構文規則
+// block         = "{" statementList "}" .
+// statementList = { statement ";" } .
+func (p *Parser) block() *Node {
+	if !p.startsWithValue("{") {
+		error_tok(p.code, p.peek(1)[0], "{が見つかりません")
+	}
+	p.read(1) // "{"をスキップ
+
+	node := &Node{kind: ND_BLOCK, block: []*Node{}}
+	for {
+		if p.startsWithValue(";") {
+			p.read(1) // ";"をスキップ
+		}
+		if p.startsWithValue("}") {
+			p.read(1) // "}"をスキップ
+			return node
+		}
+		node.block = append(node.block, p.stmt())
+		if !p.startsWithValue(";") && !p.startsWithValue("}") {
+			error_tok(p.code, p.peek(1)[0], "セミコロンが見つかりません")
+		}
+	}
+}
+
+// stmt = "return" expr | block | assignStmt .
+func (p *Parser) stmt() *Node {
+	// return statement
+	if p.startsWithValue("return") {
+		p.read(1) // "returnをスキップ"
+		return &Node{kind: ND_RETURN_STMT, lhs: p.expr()}
+	}
+	// block
+	if p.startsWithValue("{") {
+		return p.block()
+	}
+	// assign statement
+	return p.assignStmt()
+}
+
+// assignStmt = expr [ "=" expr ].
+func (p *Parser) assignStmt() *Node {
+	lhs := p.expr()
+	if p.startsWithValue("=") {
+		p.read(1) // "="をスキップ
+		rhs := p.expr()
+		return &Node{kind: ND_ASSIGN_STMT, lhs: lhs, rhs: rhs}
+	} else {
+		return &Node{kind: ND_EXPR_STMT, lhs: lhs}
+	}
 }
 
 // expr = add { "==" add | "!=" add | "<" add | "<=" add | ">" add | ">=" add } .

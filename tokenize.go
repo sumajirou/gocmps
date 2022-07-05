@@ -90,10 +90,14 @@ func (tn *Tokenizer) tokenize() []*Token {
 
 		// Add semicolon before newline
 		if c == '\n' {
-			//行の最後のトークンが以下のいずれかの場合，その後ろにセミコロンが自動的に挿入される．(識別子, 整数リテラル，浮動小数点リテラル， 虚数リテラル，ルーンリテラル，文字列リテラル,break, continue, fallthrough, return,++, --, ), ], } )
-			// 改行の前にセミコロンを挿入する。浮動小数点リテラル， 虚数リテラル，ルーンリテラル，文字列リテラルが未実装(TODO)
+			// > 行の最後のトークンが以下のいずれかの場合，その後ろにセミコロンが自動的に挿入される．(識別子, 整数リテラル，浮動小数点リテラル， 虚数リテラル，ルーンリテラル，文字列リテラル,break, continue, fallthrough, return,++, --, ), ], } )
+			// > 複雑な文を1行で記述できるように、区切り記号「）」または「}」の前にセミコロンを省略することができます。
+			//   変数宣言や定数宣言や構造体、ブロックなどで複数の文を1行で書くとき、最後のセミコロンを補完する。
+			//   e.g. func f() {print("a"); panic(nil)}
+			// 第1のケースは字句解析で処理できるが、第2のケースは構文解析が必要。
+			// TODO: 浮動小数点リテラル， 虚数リテラル，ルーンリテラル，文字列リテラルが未実装
 			tk := tn.tokens[len(tn.tokens)-1] // last token in line
-			if tk.kind == TK_NUM || tk.kind == TK_IDENT ||
+			if tk.kind == TK_IDENT || tk.kind == TK_NUM ||
 				tk.val == "break" || tk.val == "continue" || tk.val == "fallthrough" || tk.val == "return" ||
 				tk.val == "++" || tk.val == "--" || tk.val == ")" || tk.val == "]" || tk.val == "}" {
 				semicolon := &Token{kind: TK_RESERVED, loc: tn.i, val: ";"}

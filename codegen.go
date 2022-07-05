@@ -3,9 +3,9 @@ package main
 import "fmt"
 
 type Codegen struct {
-	code  string
-	nodes []*Node
-	lVar  map[string]int
+	code    string
+	program *Node
+	lVar    map[string]int
 }
 
 func (cg *Codegen) gen_lval(node *Node) {
@@ -71,6 +71,10 @@ func (cg *Codegen) gen_stmt(node *Node) {
 		cg.gen_expr(node.lhs)           // 式の値を計算してスタックに積み
 		fmt.Printf("  pop rax\n")       // スタックからraxにポップし
 		fmt.Printf("  jmp .L.return\n") // リターンする
+	case ND_BLOCK:
+		for _, stmt := range node.block {
+			cg.gen_stmt(stmt) // 文を逐次実行
+		}
 	case ND_EXPR_STMT:
 		cg.gen_expr(node.lhs)     // 式の値を計算してスタックに積み
 		fmt.Printf("  pop rax\n") // スタックの値を捨てる
@@ -96,7 +100,7 @@ func (cg *Codegen) codegen() {
 	fmt.Printf("  mov rbp, rsp\n")
 	fmt.Printf("  sub rsp, %d\n", len(cg.lVar)*8)
 
-	for _, node := range cg.nodes {
+	for _, node := range cg.program.block {
 		cg.gen_stmt(node) // 文を逐次実行
 	}
 
