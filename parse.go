@@ -25,7 +25,7 @@ type Node struct {
 	lhs    *Node    // Left-hand side
 	rhs    *Node    // Right-hand side
 	block  []*Node  // Used if king == ND_BLOCK
-	val    string   // Used if king == ND_NUM
+	val    string   // Used if king == ND_NUM or ND_VAR
 	offset int      // Used if king == ND_VAR
 }
 
@@ -33,8 +33,10 @@ type Parser struct {
 	code   string
 	tokens []*Token
 	i      int
-	lVar   map[string]int
+	scope  []lVar
+	offset int
 }
+type lVar map[string]int
 
 func (p *Parser) peek(n int) []*Token {
 	if p.i+n > len(p.tokens) {
@@ -64,6 +66,8 @@ func (p *Parser) startsWithValue(s string) bool {
 
 // program       = block ";" .
 func (p *Parser) parse() *Node {
+	p.offset = 0
+	p.scope = []lVar{map[string]int{}} // ファイルスコープを追加
 	node := p.block()
 	if !p.startsWithValue(";") {
 		error_tok(p.code, p.peek(1)[0], "セミコロンが見つかりません")
@@ -76,6 +80,7 @@ func (p *Parser) parse() *Node {
 	if !p.startsWithTokenKind(TK_EOF) {
 		error_tok(p.code, p.peek(1)[0], "EOFの前にトークンが残っています")
 	}
+	node.offset = p.offset
 	return node
 }
 
@@ -83,6 +88,7 @@ func (p *Parser) parse() *Node {
 // block         = "{" statementList "}" .
 // statementList = { statement ";" } .
 func (p *Parser) block() *Node {
+	p.scope = append([]lVar{map[string]int{}}, p.scope...) // ブロックスコープを追加
 	if !p.startsWithValue("{") {
 		error_tok(p.code, p.peek(1)[0], "{が見つかりません")
 	}
@@ -94,7 +100,8 @@ func (p *Parser) block() *Node {
 			p.read(1) // ";"をスキップ
 		}
 		if p.startsWithValue("}") {
-			p.read(1) // "}"をスキップ
+			p.read(1)             // "}"をスキップ
+			p.scope = p.scope[1:] // ブロックスコープを削除
 			return node
 		}
 		node.block = append(node.block, p.stmt())
@@ -104,12 +111,16 @@ func (p *Parser) block() *Node {
 	}
 }
 
-// stmt = "return" expr | block | assignStmt .
+// statement     = "return" expr | VarDecl | block | assignStmt .
 func (p *Parser) stmt() *Node {
 	// return statement
 	if p.startsWithValue("return") {
 		p.read(1) // "returnをスキップ"
 		return &Node{kind: ND_RETURN_STMT, lhs: p.expr()}
+	}
+	// varDecl
+	if p.startsWithValue("var") {
+		return p.varDecl()
 	}
 	// block
 	if p.startsWithValue("{") {
@@ -119,16 +130,56 @@ func (p *Parser) stmt() *Node {
 	return p.assignStmt()
 }
 
-// assignStmt = expr [ "=" expr ].
-func (p *Parser) assignStmt() *Node {
-	lhs := p.expr()
+// VarDecl       = "var" ident ( "int" [ "=" expr ] | "=" expr ) .
+func (p *Parser) varDecl() *Node {
+	if !p.startsWithValue("var") {
+		error_tok(p.code, p.peek(1)[0], "varが見つかりません")
+	}
+	p.read(1) // "var"をスキップ
+
+	token := p.read(1)[0]
+	if _, ok := p.scope[0][token.val]; ok {
+		// 変数が現在のスコープで宣言済みなのでエラー
+		error_tok(p.code, token, "変数は宣言済みです。")
+	}
+	// 宣言されていないならスコープに加える。
+	p.offset += 8
+	p.scope[0][token.val] = p.offset
+	lhs := &Node{kind: ND_VAR, token: token, val: token.val, offset: p.offset}
+
 	if p.startsWithValue("=") {
 		p.read(1) // "="をスキップ
 		rhs := p.expr()
 		return &Node{kind: ND_ASSIGN_STMT, lhs: lhs, rhs: rhs}
-	} else {
-		return &Node{kind: ND_EXPR_STMT, lhs: lhs}
 	}
+
+	if p.startsWithValue("int") {
+		p.read(1) // "int"をスキップ
+		if p.startsWithValue("=") {
+			p.read(1) // "="をスキップ
+			rhs := p.expr()
+			return &Node{kind: ND_ASSIGN_STMT, lhs: lhs, rhs: rhs}
+		}
+		// 宣言のみなのでゼロ値で初期化
+		rhs := &Node{kind: ND_NUM, val: "0"}
+		return &Node{kind: ND_ASSIGN_STMT, lhs: lhs, rhs: rhs}
+	}
+	error_tok(p.code, lhs.token, "型名か初期化子が必要です。")
+	return nil
+}
+
+// assignStmt = expr [ "=" expr ].
+func (p *Parser) assignStmt() *Node {
+	lhs := p.expr()
+	if p.startsWithValue("=") {
+		if lhs.kind != ND_VAR {
+			error_tok(p.code, lhs.token, "左辺が変数ではありません")
+		}
+		p.read(1) // "="をスキップ
+		rhs := p.expr()
+		return &Node{kind: ND_ASSIGN_STMT, lhs: lhs, rhs: rhs}
+	}
+	return &Node{kind: ND_EXPR_STMT, lhs: lhs}
 }
 
 // expr = add { "==" add | "!=" add | "<" add | "<=" add | ">" add | ">=" add } .
@@ -253,6 +304,12 @@ func (p *Parser) num() *Node {
 // ident = letter { alnum } .
 func (p *Parser) ident() *Node {
 	token := p.read(1)[0]
-	offset := p.lVar[token.val]
-	return &Node{kind: ND_VAR, token: token, val: token.val, offset: offset}
+	for _, m := range p.scope {
+		if offset, ok := m[token.val]; ok {
+			return &Node{kind: ND_VAR, token: token, val: token.val, offset: offset}
+		}
+	}
+	// 変数がいずれのスコープにも宣言されていないならエラー
+	error_tok(p.code, token, "変数が宣言されていません。")
+	return nil
 }

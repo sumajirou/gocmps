@@ -5,7 +5,6 @@ import "fmt"
 type Codegen struct {
 	code    string
 	program *Node
-	lVar    map[string]int
 }
 
 func (cg *Codegen) gen_lval(node *Node) {
@@ -98,7 +97,7 @@ func (cg *Codegen) codegen() {
 	// 変数の領域を確保する
 	fmt.Printf("  push rbp\n")
 	fmt.Printf("  mov rbp, rsp\n")
-	fmt.Printf("  sub rsp, %d\n", len(cg.lVar)*8)
+	fmt.Printf("  sub rsp, %d\n", cg.program.offset)
 
 	for _, node := range cg.program.block {
 		cg.gen_stmt(node) // 文を逐次実行

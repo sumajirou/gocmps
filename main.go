@@ -31,8 +31,8 @@ func main() {
 	code := os.Args[1] + "\n" // ソースコードの終端が改行文字であることを保証
 	tokenizer := Tokenizer{code: code}
 	tokens := tokenizer.tokenize()
-	parser := Parser{code: code, tokens: tokens, lVar: tokenizer.lVar}
+	parser := Parser{code: code, tokens: tokens}
 	program := parser.parse()
-	codegen := Codegen{code: code, program: program, lVar: parser.lVar}
+	codegen := Codegen{code: code, program: program}
 	codegen.codegen()
 }

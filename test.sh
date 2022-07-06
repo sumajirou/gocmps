@@ -50,12 +50,17 @@ assert 1 '{ return 1; 2; 3 }'
 assert 2 '{ 1; return 2; 3 }'
 assert 3 '{ 1; 2; return 3 }'
 
-assert 3 '{ a=3; return a }'
-assert 8 '{ a=3; z=5; return a+z }'
-assert 3 '{ foo=3; return foo }'
-assert 8 '{ foo123=3; bar=5; return foo123+bar }'
+assert 3 '{ var a=3; return a }'
+assert 8 '{ var a=3; var z=5; return a+z }'
+assert 3 '{ var foo=3; return foo }'
+assert 8 '{ var foo123=3; var bar=5; return foo123+bar }'
 
 assert 3 '{ { 1; { 2; }; return 3; }; }'
 assert 4 '{{}; {;}; {1;}; {2;3}; return 4}'
 
+assert 6 '{var a int = 1; var b int; b=2; var c=3; return a+b+c}'
+assert 4 '{var a int; {a=4}; return a}'
+assert 0 '{var a int; {var a int = 4}; return a}'
+
 printf '\033[32m%s\033[m\n' 'OK'
+

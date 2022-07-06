@@ -18,7 +18,6 @@ type Tokenizer struct {
 	code   string
 	tokens []*Token
 	i      int
-	lVar   map[string]int
 }
 
 func isDigit(c byte) bool {
@@ -83,8 +82,6 @@ func (tn *Tokenizer) startswith(s string) bool {
 }
 
 func (tn *Tokenizer) tokenize() []*Token {
-	tn.lVar = map[string]int{}
-	offset := 8
 	for tn.i < len(tn.code) {
 		c := tn.peek(1)[0]
 
@@ -137,11 +134,6 @@ func (tn *Tokenizer) tokenize() []*Token {
 				token.val += tn.read(1)
 			}
 			tn.tokens = append(tn.tokens, token)
-			_, ok := tn.lVar[token.val]
-			if !ok {
-				tn.lVar[token.val] = offset
-				offset += 8
-			}
 			continue
 		}
 
