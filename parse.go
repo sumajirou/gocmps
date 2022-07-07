@@ -13,6 +13,7 @@ const (
 	ND_LE                          // <=
 	ND_ASSIGN_STMT                 // =
 	ND_RETURN_STMT                 // "return"
+	ND_IF_STMT                     // "if"
 	ND_BLOCK                       // "{ ... }"
 	ND_EXPR_STMT                   // Expression statement
 	ND_VAR                         // Variable
@@ -24,6 +25,9 @@ type Node struct {
 	token  *Token   // Token
 	lhs    *Node    // Left-hand side
 	rhs    *Node    // Right-hand side
+	cond   *Node    // "if" statement
+	then   *Node    // "if" statement
+	els    *Node    // "if" statement
 	block  []*Node  // Used if king == ND_BLOCK
 	val    string   // Used if king == ND_NUM or ND_VAR
 	offset int      // Used if king == ND_VAR
@@ -111,16 +115,20 @@ func (p *Parser) block() *Node {
 	}
 }
 
-// statement     = "return" expr | VarDecl | block | assignStmt .
+// statement     = "return" expr | VarDecl | IfStmt | block | assignStmt .
 func (p *Parser) stmt() *Node {
 	// return statement
 	if p.startsWithValue("return") {
 		p.read(1) // "returnをスキップ"
 		return &Node{kind: ND_RETURN_STMT, lhs: p.expr()}
 	}
-	// varDecl
+	// VarDecl
 	if p.startsWithValue("var") {
 		return p.varDecl()
+	}
+	// IfStmt
+	if p.startsWithValue("if") {
+		return p.ifStmt()
 	}
 	// block
 	if p.startsWithValue("{") {
@@ -166,6 +174,26 @@ func (p *Parser) varDecl() *Node {
 	}
 	error_tok(p.code, lhs.token, "型名か初期化子が必要です。")
 	return nil
+}
+
+// IfStmt        = "if" Expression Block [ "else" ( IfStmt | Block ) ] .
+func (p *Parser) ifStmt() *Node {
+	if !p.startsWithValue("if") {
+		error_tok(p.code, p.peek(1)[0], "ifが見つかりません")
+	}
+	p.read(1)                                              // "if"をスキップ
+	p.scope = append([]lVar{map[string]int{}}, p.scope...) // ifスコープを追加
+	node := &Node{kind: ND_IF_STMT, cond: p.expr(), then: p.block()}
+	if p.startsWithValue("else") {
+		p.read(1) // "else"をスキップ
+		if p.startsWithValue("if") {
+			node.els = p.ifStmt()
+		} else {
+			node.els = p.block()
+		}
+	}
+	p.scope = p.scope[1:] // ifスコープを削除
+	return node
 }
 
 // assignStmt = expr [ "=" expr ].

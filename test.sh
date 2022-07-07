@@ -62,5 +62,13 @@ assert 6 '{var a int = 1; var b int; b=2; var c=3; return a+b+c}'
 assert 4 '{var a int; {a=4}; return a}'
 assert 0 '{var a int; {var a int = 4}; return a}'
 
+assert 3 '{ if 0 { return 2 }; return 3 }'
+assert 3 '{ if 1-1 { return 2 }; return 3 }'
+assert 2 '{ if 1 { return 2 }; return 3 }'
+assert 2 '{ if 2-1 { return 2 }; return 3 }'
+assert 4 '{ if 0 { 1; 2; return 3 } else { return 4 } }'
+assert 3 '{ if 1 { 1; 2; return 3 } else { return 4 } }'
+assert 5 '{ if 0 { return 3 } else if 0 { return 4 } else { return 5 } }'
+
 printf '\033[32m%s\033[m\n' 'OK'
 

@@ -4,7 +4,9 @@
 program       = block ";" .
 block         = "{" statementList "}" .
 statementList = { statement ";" } .
-statement     = "return" expr | VarDecl | block | assignStmt .
+statement     = "return" expr | VarDecl | IfStmt | block | SimpleStmt .
+SimpleStmt    = Assignment .
+IfStmt        = "if" Expression Block [ "else" ( IfStmt | Block ) ] .
 VarDecl       = "var" ident ( "int" [ "=" expr ] | "=" expr ) .
 assignStmt    = expr [ "=" expr ] .
 expr          = add { "==" add | "!=" add | "<" add | "<=" add | ">" add | ">=" add } .

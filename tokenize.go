@@ -55,6 +55,16 @@ func isPunct(c byte) bool {
 	return false
 }
 
+func isKeywords(ident string) bool {
+	keywords := []string{"return", "if", "else"}
+	for _, v := range keywords {
+		if v == ident {
+			return true
+		}
+	}
+	return false
+}
+
 func (tn *Tokenizer) peek(n int) string {
 	if tn.i+n > len(tn.code) {
 		return tn.code[tn.i:len(tn.code)]
@@ -120,18 +130,14 @@ func (tn *Tokenizer) tokenize() []*Token {
 			continue
 		}
 
-		// Keywords
-		if tn.startswith("return") && !isAlnum(tn.code[tn.i+6]) {
-			token := &Token{kind: TK_RESERVED, loc: tn.i, val: tn.read(6)}
-			tn.tokens = append(tn.tokens, token)
-			continue
-		}
-
-		// local variables
+		// Keywords or local variables
 		if isLetter(c) {
 			token := &Token{kind: TK_IDENT, loc: tn.i, val: tn.read(1)}
 			for isAlnum(tn.peek(1)[0]) {
 				token.val += tn.read(1)
+			}
+			if isKeywords(token.val) {
+				token.kind = TK_RESERVED
 			}
 			tn.tokens = append(tn.tokens, token)
 			continue

@@ -7,6 +7,13 @@ type Codegen struct {
 	program *Node
 }
 
+var counter int = 0
+
+func count() int {
+	counter++
+	return counter
+}
+
 func (cg *Codegen) gen_lval(node *Node) {
 	if node.kind != ND_VAR {
 		error_tok(cg.code, node.token, "左辺値が変数ではありません")
@@ -64,12 +71,26 @@ func (cg *Codegen) gen_expr(node *Node) {
 	}
 	fmt.Printf("  push rax\n") // 計算した値をスタックに積む
 }
+
 func (cg *Codegen) gen_stmt(node *Node) {
 	switch node.kind {
 	case ND_RETURN_STMT:
 		cg.gen_expr(node.lhs)           // 式の値を計算してスタックに積み
 		fmt.Printf("  pop rax\n")       // スタックからraxにポップし
 		fmt.Printf("  jmp .L.return\n") // リターンする
+	case ND_IF_STMT:
+		c := count()
+		cg.gen_expr(node.cond)              // condを計算してスタックに積み
+		fmt.Printf("  pop rax\n")           // スタックからraxにポップし
+		fmt.Printf("  cmp rax, 0\n")        // 比較
+		fmt.Printf("  je  .L.else.%d\n", c) // condがfalseなら対応する.L.elseにジャンプ
+		cg.gen_stmt(node.then)              // then節を実行
+		fmt.Printf("  jmp .L.end.%d\n", c)  // 対応する.L.endにジャンプ
+		fmt.Printf(".L.else.%d:\n", c)
+		if node.els != nil {
+			cg.gen_stmt(node.els) // els節があれば実行
+		}
+		fmt.Printf(".L.end.%d:\n", c)
 	case ND_BLOCK:
 		for _, stmt := range node.block {
 			cg.gen_stmt(stmt) // 文を逐次実行
