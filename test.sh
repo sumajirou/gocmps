@@ -70,5 +70,13 @@ assert 4 '{ if 0 { 1; 2; return 3 } else { return 4 } }'
 assert 3 '{ if 1 { 1; 2; return 3 } else { return 4 } }'
 assert 5 '{ if 0 { return 3 } else if 0 { return 4 } else { return 5 } }'
 
+assert 55 '{ var i=0; var j=0; for i=0; i<=10; i=i+1 { j=i+j }; return j; }'
+assert 3 '{ for { return 3 }; return 5 }'
+assert 3 '{ for ;; { return 3 }; return 5 }'
+assert 3 '{ for var i int;; { return 3 }; return 5 }'
+assert 5 '{ for ;0; { return 3 }; return 5 }'
+assert 3 '{ var i int; for ;;i=i+1 { return 3 }; return 5 }'
+
+
 printf '\033[32m%s\033[m\n' 'OK'
 

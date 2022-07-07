@@ -91,6 +91,24 @@ func (cg *Codegen) gen_stmt(node *Node) {
 			cg.gen_stmt(node.els) // els節があれば実行
 		}
 		fmt.Printf(".L.end.%d:\n", c)
+	case ND_FOR_STMT:
+		c := count()
+		if node.init != nil {
+			cg.gen_stmt(node.init) // init節があれば実行
+		}
+		fmt.Printf(".L.begin.%d:\n", c)
+		if node.cond != nil {
+			cg.gen_expr(node.cond)             // cond節があれば実行
+			fmt.Printf("  pop rax\n")          // スタックからraxにポップし
+			fmt.Printf("  cmp rax, 0\n")       // 比較
+			fmt.Printf("  je  .L.end.%d\n", c) // condがfalseなら対応する.L.endにジャンプ
+		}
+		cg.gen_stmt(node.then)
+		if node.inc != nil {
+			cg.gen_stmt(node.inc) // inc節があれば実行
+		}
+		fmt.Printf("  jmp .L.begin.%d\n", c)
+		fmt.Printf(".L.end.%d:\n", c)
 	case ND_BLOCK:
 		for _, stmt := range node.block {
 			cg.gen_stmt(stmt) // 文を逐次実行

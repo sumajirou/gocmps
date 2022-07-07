@@ -56,7 +56,7 @@ func isPunct(c byte) bool {
 }
 
 func isKeywords(ident string) bool {
-	keywords := []string{"return", "if", "else"}
+	keywords := []string{"return", "if", "else", "for"}
 	for _, v := range keywords {
 		if v == ident {
 			return true

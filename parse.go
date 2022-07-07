@@ -14,6 +14,7 @@ const (
 	ND_ASSIGN_STMT                 // =
 	ND_RETURN_STMT                 // "return"
 	ND_IF_STMT                     // "if"
+	ND_FOR_STMT                    // "for"
 	ND_BLOCK                       // "{ ... }"
 	ND_EXPR_STMT                   // Expression statement
 	ND_VAR                         // Variable
@@ -25,9 +26,11 @@ type Node struct {
 	token  *Token   // Token
 	lhs    *Node    // Left-hand side
 	rhs    *Node    // Right-hand side
-	cond   *Node    // "if" statement
-	then   *Node    // "if" statement
-	els    *Node    // "if" statement
+	cond   *Node    // Used if king == ND_IF_STMT or ND_FOR_STMT
+	then   *Node    // Used if king == ND_IF_STMT or ND_FOR_STMT
+	els    *Node    // Used if king == ND_IF_STMT
+	init   *Node    // Used if king == ND_FOR_STMT
+	inc    *Node    // Used if king == ND_FOR_STMT
 	block  []*Node  // Used if king == ND_BLOCK
 	val    string   // Used if king == ND_NUM or ND_VAR
 	offset int      // Used if king == ND_VAR
@@ -115,7 +118,7 @@ func (p *Parser) block() *Node {
 	}
 }
 
-// statement     = "return" expr | VarDecl | IfStmt | block | assignStmt .
+// statement     = "return" expr | VarDecl | IfStmt | ForStmt | block | assignStmt .
 func (p *Parser) stmt() *Node {
 	// return statement
 	if p.startsWithValue("return") {
@@ -129,6 +132,10 @@ func (p *Parser) stmt() *Node {
 	// IfStmt
 	if p.startsWithValue("if") {
 		return p.ifStmt()
+	}
+	// ForStmt
+	if p.startsWithValue("for") {
+		return p.forStmt()
 	}
 	// block
 	if p.startsWithValue("{") {
@@ -193,6 +200,49 @@ func (p *Parser) ifStmt() *Node {
 		}
 	}
 	p.scope = p.scope[1:] // ifスコープを削除
+	return node
+}
+
+// ForStmt       = "for" [ Condition | ForClause ] Block .
+func (p *Parser) forStmt() *Node {
+	if !p.startsWithValue("for") {
+		error_tok(p.code, p.peek(1)[0], "forが見つかりません")
+	}
+	p.read(1)                                              // "for"をスキップ
+	p.scope = append([]lVar{map[string]int{}}, p.scope...) // forスコープを追加
+
+	node := &Node{kind: ND_FOR_STMT}
+	if p.startsWithValue("{") {
+		// 条件式を省略したパターン
+		node.then = p.block()
+		p.scope = p.scope[1:] // forスコープを削除
+		return node
+	}
+
+	if !p.startsWithValue(";") {
+		stmt := p.stmt()
+		if p.startsWithValue("{") {
+			// 条件式のみのパターン
+			node.cond = stmt
+			node.then = p.block()
+			p.scope = p.scope[1:] // forスコープを削除
+			return node
+		}
+		node.init = stmt
+	}
+	// for句を用いるパターン
+	p.read(1) // 最初のセミコロンをスキップ
+
+	if !p.startsWithValue(";") {
+		node.cond = p.expr()
+	}
+	p.read(1) // 2つ目のセミコロンをスキップ
+
+	if !p.startsWithValue("{") {
+		node.inc = p.stmt()
+	}
+	node.then = p.block()
+	p.scope = p.scope[1:] // forスコープを削除
 	return node
 }
 
