@@ -40,8 +40,16 @@ func (cg *Codegen) gen_expr(node *Node) {
 		fmt.Printf("  push [rax]\n") // 変数の値をスタックに積む
 		return
 	case ND_FUNCALL:
-		fmt.Printf("  call %s\n", node.val) // raxに関数の返り値がセットされる
-		fmt.Printf("  push rax\n")          // スタックに関数の返り値を積む
+		argreg := []string{"rdi", "rsi", "rdx", "rcx", "r8", "r9"} // 第1引数から第6引数をセットするレジスタ
+		for _, v := range node.args {
+			cg.gen_expr(v) // 引数を評価しスタックに積む
+		}
+		argc := len(node.args)
+		for i := argc - 1; i >= 0; i-- {
+			fmt.Printf("  pop   %s\n", argreg[i]) // 引数をレジスタにセット
+		}
+		fmt.Printf("  call  %s\n", node.val) // raxに関数の返り値がセットされる
+		fmt.Printf("  push  rax\n")          // スタックに関数の返り値を積む
 		return
 	}
 

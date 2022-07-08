@@ -34,6 +34,7 @@ type Node struct {
 	inc    *Node    // Used if king == ND_FOR_STMT
 	block  []*Node  // Used if king == ND_BLOCK
 	val    string   // Used if king == ND_NUM or ND_VAR or ND_FUNCALL
+	args   []*Node  // Used if king == ND_FUNCALL
 	offset int      // Used if king == ND_VAR
 }
 
@@ -349,24 +350,15 @@ func (p *Parser) unary() *Node {
 	return p.primary()
 }
 
-// primary       = num | ident [ Arguments ]| "(" expr ")" .
-// Arguments     = "(" ")" .
+// primary       = num | ident | funcall | "(" expr ")" .
 func (p *Parser) primary() *Node {
 	if p.startsWithTokenKind(TK_NUM) {
 		return p.num()
 	}
 
 	if p.startsWithTokenKind(TK_IDENT) {
-		// Function call
 		if p.peek(2)[1].val == "(" {
-			token := p.read(1)[0]
-			node := &Node{kind: ND_FUNCALL, val: token.val}
-			p.read(1) // "("をスキップ
-			if !p.startsWithValue(")") {
-				error_tok(p.code, p.peek(1)[0], "閉じ括弧がない")
-			}
-			p.read(1) // ")"をスキップ
-			return node
+			return p.funcall()
 		}
 		return p.ident()
 	}
@@ -403,4 +395,24 @@ func (p *Parser) ident() *Node {
 	// 変数がいずれのスコープにも宣言されていないならエラー
 	error_tok(p.code, token, "変数が宣言されていません。")
 	return nil
+}
+
+// funcall = ident "(" [ ExpressionList [ "," ] ] ")" .
+// ExpressionList = Expression { "," Expression } .
+func (p *Parser) funcall() *Node {
+	funcname := p.read(1)[0]
+	node := &Node{kind: ND_FUNCALL, val: funcname.val}
+	p.read(1)             // "("をスキップ
+	node.args = []*Node{} //ExpressionList
+	for !p.startsWithValue(")") {
+		node.args = append(node.args, p.expr())
+		if p.startsWithValue(",") {
+			p.read(1) // ","をスキップ
+		}
+	}
+	if len(node.args) > 6 {
+		error_tok(p.code, funcname, "引数が多すぎます(6個以内)")
+	}
+	p.read(1) // ")"をスキップ
+	return node
 }
