@@ -1,10 +1,15 @@
 #! /bin/bash
+cat <<EOF | gcc -xc -c -o tmp2.o -
+int ret3() { return 3; }
+int ret5() { return 5; }
+EOF
+
 assert() {
   expected="$1"
   input="$2"
 
   ./gocmps "$input" > tmp.s
-  cc -o tmp tmp.s
+  cc -o tmp tmp.s tmp2.o
   ./tmp
   actual="$?"
 
@@ -76,6 +81,9 @@ assert 3 '{ for ;; { return 3 }; return 5 }'
 assert 3 '{ for var i int;; { return 3 }; return 5 }'
 assert 5 '{ for ;0; { return 3 }; return 5 }'
 assert 3 '{ var i int; for ;;i=i+1 { return 3 }; return 5 }'
+
+assert 3 '{ return ret3(); }'
+assert 1 '{ if ret5() == 5 {return 1}; return 0; }'
 
 
 printf '\033[32m%s\033[m\n' 'OK'

@@ -14,6 +14,12 @@ func count() int {
 	return counter
 }
 
+// Round up `n` to the nearest multiple of `align`. For instance,
+// align_to(5, 8) returns 8 and align_to(11, 8) returns 16.
+func align_to(n int, align int) int {
+	return (n + align - 1) / align * align
+}
+
 func (cg *Codegen) gen_lval(node *Node) {
 	if node.kind != ND_VAR {
 		error_tok(cg.code, node.token, "左辺値が変数ではありません")
@@ -32,6 +38,10 @@ func (cg *Codegen) gen_expr(node *Node) {
 		cg.gen_lval(node)            // 変数のアドレスをスタックに積む
 		fmt.Printf("  pop rax\n")    // 変数のアドレスをポップ
 		fmt.Printf("  push [rax]\n") // 変数の値をスタックに積む
+		return
+	case ND_FUNCALL:
+		fmt.Printf("  call %s\n", node.val) // raxに関数の返り値がセットされる
+		fmt.Printf("  push rax\n")          // スタックに関数の返り値を積む
 		return
 	}
 
@@ -132,21 +142,29 @@ func (cg *Codegen) codegen() {
 	fmt.Printf(".global main\n")
 	fmt.Printf("main:\n")
 
-	// プロローグ
-	// 変数の領域を確保する
-	fmt.Printf("  push rbp\n")
-	fmt.Printf("  mov rbp, rsp\n")
-	fmt.Printf("  sub rsp, %d\n", cg.program.offset)
+	// プロローグ 特定のレジスタの値をスタックに退避(rbp, rsp, rbx, r12, r13, r14, r15)
+	// 関数呼び出しを行うときはRSPが16の倍数になっている状態でcall命令を呼ぶ必要がある。
+	fmt.Printf("  push  rbx\n")
+	fmt.Printf("  push  r12\n")
+	fmt.Printf("  push  r13\n")
+	fmt.Printf("  push  r14\n")
+	fmt.Printf("  push  r15\n")
+	fmt.Printf("  push  rbp\n")
+	fmt.Printf("  mov   rbp, rsp\n")
+	fmt.Printf("  sub   rsp, %d\n", align_to(cg.program.offset, 16)) // 変数用の領域を確保する
 
 	for _, node := range cg.program.block {
 		cg.gen_stmt(node) // 文を逐次実行
 	}
-
 	fmt.Printf(".L.return:\n")
 
-	// エピローグ
-	// 最後の式の結果がRAXに残っているのでそれが返り値になる
-	fmt.Printf("  mov rsp, rbp\n")
-	fmt.Printf("  pop rbp\n")
-	fmt.Printf("  ret\n")
+	// エピローグ スタックに退避した値をレジスタに戻す
+	fmt.Printf("  mov   rsp, rbp\n")
+	fmt.Printf("  pop   rbp\n")
+	fmt.Printf("  pop   r15\n")
+	fmt.Printf("  pop   r14\n")
+	fmt.Printf("  pop   r13\n")
+	fmt.Printf("  pop   r12\n")
+	fmt.Printf("  pop   rbx\n")
+	fmt.Printf("  ret\n") // 最後の式の結果がRAXに残っているのでそれがプログラムの返り値になる
 }

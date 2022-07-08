@@ -16,6 +16,7 @@ const (
 	ND_IF_STMT                     // "if"
 	ND_FOR_STMT                    // "for"
 	ND_BLOCK                       // "{ ... }"
+	ND_FUNCALL                     // Function call
 	ND_EXPR_STMT                   // Expression statement
 	ND_VAR                         // Variable
 	ND_NUM                         // Integer
@@ -32,7 +33,7 @@ type Node struct {
 	init   *Node    // Used if king == ND_FOR_STMT
 	inc    *Node    // Used if king == ND_FOR_STMT
 	block  []*Node  // Used if king == ND_BLOCK
-	val    string   // Used if king == ND_NUM or ND_VAR
+	val    string   // Used if king == ND_NUM or ND_VAR or ND_FUNCALL
 	offset int      // Used if king == ND_VAR
 }
 
@@ -348,13 +349,25 @@ func (p *Parser) unary() *Node {
 	return p.primary()
 }
 
-// primary = num | ident | "(" expr ")" .
+// primary       = num | ident [ Arguments ]| "(" expr ")" .
+// Arguments     = "(" ")" .
 func (p *Parser) primary() *Node {
 	if p.startsWithTokenKind(TK_NUM) {
 		return p.num()
 	}
 
 	if p.startsWithTokenKind(TK_IDENT) {
+		// Function call
+		if p.peek(2)[1].val == "(" {
+			token := p.read(1)[0]
+			node := &Node{kind: ND_FUNCALL, val: token.val}
+			p.read(1) // "("をスキップ
+			if !p.startsWithValue(")") {
+				error_tok(p.code, p.peek(1)[0], "閉じ括弧がない")
+			}
+			p.read(1) // ")"をスキップ
+			return node
+		}
 		return p.ident()
 	}
 
