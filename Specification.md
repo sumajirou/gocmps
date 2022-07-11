@@ -1,19 +1,19 @@
 言語仕様
 
 ```ebnf
-program          = block ";" .
+program          = { FunctionDecl ";" } .
+FunctionDecl     = "func" ident Parameters [ "int" ] Block .
+Parameters       = "(" ")" .
 block            = "{" statementList "}" .
 statementList    = { statement ";" } .
 statement        = "return" expr | VarDecl | IfStmt | forStmt | block | SimpleStmt .
 SimpleStmt       = Assignment .
 IfStmt           = "if" Expression Block [ "else" ( IfStmt | Block ) ] .
-
 ForStmt          = "for" [ Condition | ForClause ] Block .
 Condition        = Expression .
 ForClause        = [ InitStmt ] ";" [ Condition ] ";" [ PostStmt ] .
 InitStmt         = SimpleStmt .
 PostStmt         = SimpleStmt .
-
 VarDecl          = "var" ident ( "int" [ "=" expr ] | "=" expr ) .
 assignStmt       = expr [ "=" expr ] .
 expr             = add { "==" add | "!=" add | "<" add | "<=" add | ">" add | ">=" add } .

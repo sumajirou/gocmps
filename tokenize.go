@@ -14,6 +14,7 @@ type Token struct {
 	val  string    // token value
 	loc  int       // Token location
 }
+
 type Tokenizer struct {
 	code   string
 	tokens []*Token
@@ -56,7 +57,7 @@ func isPunct(c byte) bool {
 }
 
 func isKeywords(ident string) bool {
-	keywords := []string{"return", "if", "else", "for"}
+	keywords := []string{"return", "if", "else", "for", "func"}
 	for _, v := range keywords {
 		if v == ident {
 			return true
@@ -94,7 +95,7 @@ func (tn *Tokenizer) startswith(s string) bool {
 func (tn *Tokenizer) tokenize() []*Token {
 	for tn.i < len(tn.code) {
 		c := tn.peek(1)[0]
-
+		// TODO: ファイルの先頭が空行のパターン考慮しろ
 		// Add semicolon before newline
 		if c == '\n' {
 			// > 行の最後のトークンが以下のいずれかの場合，その後ろにセミコロンが自動的に挿入される．(識別子, 整数リテラル，浮動小数点リテラル， 虚数リテラル，ルーンリテラル，文字列リテラル,break, continue, fallthrough, return,++, --, ), ], } )

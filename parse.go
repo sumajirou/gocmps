@@ -16,36 +16,51 @@ const (
 	ND_IF_STMT                     // "if"
 	ND_FOR_STMT                    // "for"
 	ND_BLOCK                       // "{ ... }"
-	ND_FUNCALL                     // Function call
+	ND_FUNCCALL                    // Function call
+	ND_FUNCDECL                    // Function declaration
 	ND_EXPR_STMT                   // Expression statement
 	ND_VAR                         // Variable
 	ND_NUM                         // Integer
 )
 
 type Node struct {
-	kind   NodeKind // Node kind
-	token  *Token   // Token
-	lhs    *Node    // Left-hand side
-	rhs    *Node    // Right-hand side
-	cond   *Node    // Used if king == ND_IF_STMT or ND_FOR_STMT
-	then   *Node    // Used if king == ND_IF_STMT or ND_FOR_STMT
-	els    *Node    // Used if king == ND_IF_STMT
-	init   *Node    // Used if king == ND_FOR_STMT
-	inc    *Node    // Used if king == ND_FOR_STMT
-	block  []*Node  // Used if king == ND_BLOCK
-	val    string   // Used if king == ND_NUM or ND_VAR or ND_FUNCALL
-	args   []*Node  // Used if king == ND_FUNCALL
-	offset int      // Used if king == ND_VAR
+	kind     NodeKind // Node kind
+	token    *Token   // Token
+	lhs      *Node    // Left-hand side
+	rhs      *Node    // Right-hand side
+	cond     *Node    // Used if king == ND_IF_STMT or ND_FOR_STMT
+	then     *Node    // Used if king == ND_IF_STMT or ND_FOR_STMT
+	els      *Node    // Used if king == ND_IF_STMT
+	init     *Node    // Used if king == ND_FOR_STMT
+	inc      *Node    // Used if king == ND_FOR_STMT
+	block    []*Node  // Used if king == ND_BLOCK
+	val      string   // Used if king == ND_NUM or ND_VAR or ND_FUNCCALL or ND_FUNCDECL
+	args     []*Node  // Used if king == ND_FUNCCALL
+	offset   int      // Used if king == ND_VAR or ND_FUNCDECL
+	body     *Node    // Used if king == ND_FUNCDECL
+	lvar     []*Var   // Used if king == ND_FUNCDECL
+	variable *Var     // Used if king == ND_VAR
+}
+
+type Var struct {
+	name   string
+	offset int
 }
 
 type Parser struct {
 	code   string
 	tokens []*Token
 	i      int
-	scope  []lVar
+	scope  []map[string]*Var
+	lvar   []*Var
 	offset int
 }
-type lVar map[string]int
+
+// Round up `n` to the nearest multiple of `align`. For instance,
+// align_to(5, 8) returns 8 and align_to(11, 8) returns 16.
+func align_to(n int, align int) int {
+	return (n + align - 1) / align * align
+}
 
 func (p *Parser) peek(n int) []*Token {
 	if p.i+n > len(p.tokens) {
@@ -73,31 +88,62 @@ func (p *Parser) startsWithValue(s string) bool {
 	return p.tokens[p.i].val == s
 }
 
-// program       = block ";" .
-func (p *Parser) parse() *Node {
-	p.offset = 0
-	p.scope = []lVar{map[string]int{}} // ファイルスコープを追加
-	node := p.block()
-	if !p.startsWithValue(";") {
-		error_tok(p.code, p.peek(1)[0], "セミコロンが見つかりません")
-	}
-	p.read(1) // ";"をスキップ
+func (p *Parser) enter_scope() {
+	scope := map[string]*Var{}
+	p.scope = append([]map[string]*Var{scope}, p.scope...) // スコープを追加
+}
 
-	if p.i == len(p.tokens) {
-		error_at(p.code, p.i, "EOFが見つかりません")
+func (p *Parser) leave_scope() {
+	p.scope = p.scope[1:] // スコープを抜ける
+}
+
+// program          = { FunctionDecl ";" } .
+func (p *Parser) parse() []*Node {
+	var functions []*Node
+	p.enter_scope() // ファイルスコープを追加
+	for !p.startsWithTokenKind(TK_EOF) {
+		fn := p.funcDecl()
+		functions = append(functions, fn)
+		if !p.startsWithValue(";") {
+			error_tok(p.code, p.peek(1)[0], "セミコロンが見つかりません")
+		}
+		p.read(1) // ";"をスキップ
 	}
-	if !p.startsWithTokenKind(TK_EOF) {
-		error_tok(p.code, p.peek(1)[0], "EOFの前にトークンが残っています")
+	p.leave_scope() // ファイルスコープを削除
+	return functions
+}
+
+// FunctionDecl     = "func" ident Parameters [ "int" ] Block .
+// Parameters       = "(" ")" .
+func (p *Parser) funcDecl() *Node {
+	p.lvar = []*Var{}
+	if !p.startsWithValue("func") {
+		error_tok(p.code, p.peek(1)[0], "funcが見つかりません")
 	}
-	node.offset = p.offset
-	return node
+	p.read(1) // "func"をスキップ
+	token := p.read(1)[0]
+	p.read(1) // "("をスキップ
+	p.read(1) // ")"をスキップ
+	if p.startsWithValue("int") {
+		p.read(1) // "int"をスキップ
+	}
+	fn := &Node{kind: ND_FUNCDECL, token: token, val: token.val, body: p.block(), lvar: p.lvar}
+	// 変数のオフセット計算
+	offset := 0
+	for _, variable := range fn.lvar {
+		offset += 8
+		variable.offset = offset
+	}
+	// 関数のオフセット計算
+	fn.offset = align_to(offset, 16)
+	return fn
 }
 
 // 以下構文規則
 // block         = "{" statementList "}" .
 // statementList = { statement ";" } .
 func (p *Parser) block() *Node {
-	p.scope = append([]lVar{map[string]int{}}, p.scope...) // ブロックスコープを追加
+	p.enter_scope() // ブロックスコープを追加
 	if !p.startsWithValue("{") {
 		error_tok(p.code, p.peek(1)[0], "{が見つかりません")
 	}
@@ -109,8 +155,8 @@ func (p *Parser) block() *Node {
 			p.read(1) // ";"をスキップ
 		}
 		if p.startsWithValue("}") {
-			p.read(1)             // "}"をスキップ
-			p.scope = p.scope[1:] // ブロックスコープを削除
+			p.read(1)       // "}"をスキップ
+			p.leave_scope() // ブロックスコープを削除
 			return node
 		}
 		node.block = append(node.block, p.stmt())
@@ -159,30 +205,26 @@ func (p *Parser) varDecl() *Node {
 		// 変数が現在のスコープで宣言済みなのでエラー
 		error_tok(p.code, token, "変数は宣言済みです。")
 	}
-	// 宣言されていないならスコープに加える。
-	p.offset += 8
-	p.scope[0][token.val] = p.offset
-	lhs := &Node{kind: ND_VAR, token: token, val: token.val, offset: p.offset}
+	// 宣言されていないならスコープとローカル変数リストに加える。
+	variable := &Var{name: token.val}
+	p.scope[0][variable.name] = variable
+	p.lvar = append(p.lvar, variable)
 
-	if p.startsWithValue("=") {
-		p.read(1) // "="をスキップ
-		rhs := p.expr()
-		return &Node{kind: ND_ASSIGN_STMT, lhs: lhs, rhs: rhs}
+	lhs := &Node{kind: ND_VAR, token: token, val: token.val, variable: variable}
+
+	if p.startsWithValue(";") {
+		error_tok(p.code, lhs.token, "型名か初期化子が必要です。")
 	}
 
 	if p.startsWithValue("int") {
 		p.read(1) // "int"をスキップ
-		if p.startsWithValue("=") {
-			p.read(1) // "="をスキップ
-			rhs := p.expr()
-			return &Node{kind: ND_ASSIGN_STMT, lhs: lhs, rhs: rhs}
-		}
-		// 宣言のみなのでゼロ値で初期化
-		rhs := &Node{kind: ND_NUM, val: "0"}
-		return &Node{kind: ND_ASSIGN_STMT, lhs: lhs, rhs: rhs}
 	}
-	error_tok(p.code, lhs.token, "型名か初期化子が必要です。")
-	return nil
+	rhs := &Node{kind: ND_NUM, val: "0"} // 宣言のみの場合はゼロ値で初期化
+	if p.startsWithValue("=") {
+		p.read(1) // "="をスキップ
+		rhs = p.expr()
+	}
+	return &Node{kind: ND_ASSIGN_STMT, lhs: lhs, rhs: rhs}
 }
 
 // IfStmt        = "if" Expression Block [ "else" ( IfStmt | Block ) ] .
@@ -190,8 +232,8 @@ func (p *Parser) ifStmt() *Node {
 	if !p.startsWithValue("if") {
 		error_tok(p.code, p.peek(1)[0], "ifが見つかりません")
 	}
-	p.read(1)                                              // "if"をスキップ
-	p.scope = append([]lVar{map[string]int{}}, p.scope...) // ifスコープを追加
+	p.read(1)       // "if"をスキップ
+	p.enter_scope() // ifスコープを追加
 	node := &Node{kind: ND_IF_STMT, cond: p.expr(), then: p.block()}
 	if p.startsWithValue("else") {
 		p.read(1) // "else"をスキップ
@@ -201,7 +243,7 @@ func (p *Parser) ifStmt() *Node {
 			node.els = p.block()
 		}
 	}
-	p.scope = p.scope[1:] // ifスコープを削除
+	p.leave_scope() // ifスコープを削除
 	return node
 }
 
@@ -210,14 +252,14 @@ func (p *Parser) forStmt() *Node {
 	if !p.startsWithValue("for") {
 		error_tok(p.code, p.peek(1)[0], "forが見つかりません")
 	}
-	p.read(1)                                              // "for"をスキップ
-	p.scope = append([]lVar{map[string]int{}}, p.scope...) // forスコープを追加
+	p.read(1)       // "for"をスキップ
+	p.enter_scope() // forスコープを追加
 
 	node := &Node{kind: ND_FOR_STMT}
 	if p.startsWithValue("{") {
 		// 条件式を省略したパターン
 		node.then = p.block()
-		p.scope = p.scope[1:] // forスコープを削除
+		p.leave_scope() // forスコープを削除
 		return node
 	}
 
@@ -227,7 +269,7 @@ func (p *Parser) forStmt() *Node {
 			// 条件式のみのパターン
 			node.cond = stmt
 			node.then = p.block()
-			p.scope = p.scope[1:] // forスコープを削除
+			p.leave_scope() // forスコープを削除
 			return node
 		}
 		node.init = stmt
@@ -244,7 +286,7 @@ func (p *Parser) forStmt() *Node {
 		node.inc = p.stmt()
 	}
 	node.then = p.block()
-	p.scope = p.scope[1:] // forスコープを削除
+	p.leave_scope() // forスコープを削除
 	return node
 }
 
@@ -388,8 +430,8 @@ func (p *Parser) num() *Node {
 func (p *Parser) ident() *Node {
 	token := p.read(1)[0]
 	for _, m := range p.scope {
-		if offset, ok := m[token.val]; ok {
-			return &Node{kind: ND_VAR, token: token, val: token.val, offset: offset}
+		if variable, ok := m[token.val]; ok {
+			return &Node{kind: ND_VAR, token: token, val: token.val, variable: variable}
 		}
 	}
 	// 変数がいずれのスコープにも宣言されていないならエラー
@@ -401,7 +443,7 @@ func (p *Parser) ident() *Node {
 // ExpressionList = Expression { "," Expression } .
 func (p *Parser) funcall() *Node {
 	funcname := p.read(1)[0]
-	node := &Node{kind: ND_FUNCALL, val: funcname.val}
+	node := &Node{kind: ND_FUNCCALL, val: funcname.val}
 	p.read(1)             // "("をスキップ
 	node.args = []*Node{} //ExpressionList
 	for !p.startsWithValue(")") {

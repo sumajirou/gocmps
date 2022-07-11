@@ -28,7 +28,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	code := os.Args[1] + "\n" // ソースコードの終端が改行文字であることを保証
+	code := os.Args[1]
+	if code[len(code)-1] != '\n' {
+		code += "\n" // ソースコードの終端が改行文字であることを保証
+	}
 	tokenizer := Tokenizer{code: code}
 	tokens := tokenizer.tokenize()
 	parser := Parser{code: code, tokens: tokens}
