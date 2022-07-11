@@ -3,7 +3,7 @@
 ```ebnf
 program          = { FunctionDecl ";" } .
 FunctionDecl     = "func" ident Parameters [ "int" ] Block .
-Parameters       = "(" ")" .
+Parameters       = "(" [ ident "int" { "," ident "int" } [ "," ] ] ")" .
 block            = "{" statementList "}" .
 statementList    = { statement ";" } .
 statement        = "return" expr | VarDecl | IfStmt | forStmt | block | SimpleStmt .

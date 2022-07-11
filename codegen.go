@@ -2,6 +2,8 @@ package main
 
 import "fmt"
 
+var argreg = []string{"rdi", "rsi", "rdx", "rcx", "r8", "r9"} // 第1引数から第6引数をセットするレジスタ
+
 type Codegen struct {
 	code       string
 	program    []*Node
@@ -35,7 +37,6 @@ func (cg *Codegen) gen_expr(node *Node) {
 		fmt.Printf("  push [rax]\n") // 変数の値をスタックに積む
 		return
 	case ND_FUNCCALL:
-		argreg := []string{"rdi", "rsi", "rdx", "rcx", "r8", "r9"} // 第1引数から第6引数をセットするレジスタ
 		for _, v := range node.args {
 			cg.gen_expr(v) // 引数を評価しスタックに積む
 		}
@@ -159,6 +160,9 @@ func (cg *Codegen) codegen() {
 		fmt.Printf("  sub   rsp, %d\n", fn.offset) // 変数用の領域を確保する
 
 		// コード生成
+		for i, variable := range fn.params {
+			fmt.Printf("  mov [rbp - %d], %s\n", variable.offset, argreg[i])
+		}
 		cg.gen_stmt(fn.body)
 
 		// エピローグ スタックに退避した値をレジスタに戻す

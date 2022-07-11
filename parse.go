@@ -37,6 +37,7 @@ type Node struct {
 	val      string   // Used if king == ND_NUM or ND_VAR or ND_FUNCCALL or ND_FUNCDECL
 	args     []*Node  // Used if king == ND_FUNCCALL
 	offset   int      // Used if king == ND_VAR or ND_FUNCDECL
+	params   []*Var   // Used if king == ND_FUNCCALL
 	body     *Node    // Used if king == ND_FUNCDECL
 	lvar     []*Var   // Used if king == ND_FUNCDECL
 	variable *Var     // Used if king == ND_VAR
@@ -114,28 +115,59 @@ func (p *Parser) parse() []*Node {
 }
 
 // FunctionDecl     = "func" ident Parameters [ "int" ] Block .
-// Parameters       = "(" ")" .
+// Parameters       = "(" [ ident "int" { "," ident "int" } [ "," ] ] ")" .
 func (p *Parser) funcDecl() *Node {
+	p.enter_scope() // スコープを追加
 	p.lvar = []*Var{}
 	if !p.startsWithValue("func") {
 		error_tok(p.code, p.peek(1)[0], "funcが見つかりません")
 	}
 	p.read(1) // "func"をスキップ
 	token := p.read(1)[0]
+	if !p.startsWithValue("(") {
+		error_tok(p.code, p.peek(1)[0], "(が見つかりません")
+	}
 	p.read(1) // "("をスキップ
+	params := []*Var{}
+	for !p.startsWithValue(")") {
+		token := p.read(1)[0]
+		if _, ok := p.scope[0][token.val]; ok {
+			// 仮引数名が重複しているためエラー
+			error_tok(p.code, token, "仮引数名が重複しています")
+		}
+		variable := &Var{name: token.val}
+		params = append(params, variable)
+		p.scope[0][variable.name] = variable
+		p.read(1) // "int"をスキップ
+		if !p.startsWithValue(",") && !p.startsWithValue(")") {
+			error_tok(p.code, p.peek(1)[0], "不正なトークン")
+		}
+		if p.startsWithValue(",") {
+			p.read(1) // ","をスキップ
+		}
+	}
+
 	p.read(1) // ")"をスキップ
 	if p.startsWithValue("int") {
 		p.read(1) // "int"をスキップ
 	}
-	fn := &Node{kind: ND_FUNCDECL, token: token, val: token.val, body: p.block(), lvar: p.lvar}
+	fn := &Node{kind: ND_FUNCDECL, token: token, val: token.val, body: p.block(), params: params, lvar: p.lvar}
+
 	// 変数のオフセット計算
 	offset := 0
+	for _, variable := range fn.params {
+		offset += 8
+		variable.offset = offset
+	}
 	for _, variable := range fn.lvar {
 		offset += 8
 		variable.offset = offset
 	}
+
 	// 関数のオフセット計算
 	fn.offset = align_to(offset, 16)
+
+	p.leave_scope() // スコープを削除
 	return fn
 }
 

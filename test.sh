@@ -95,9 +95,9 @@ assert 2  'func main() { return sub(5, 3) }'
 assert 21 'func main() { return add6(1,2,3,4,5,6) }'
 
 assert 32 'func main() { return ret32() }; func ret32() int { return 32 }'
+assert 5  'func main() { return myadd(2,3) }; func myadd(a int, b int) int { return a+b }'
 # fibonacci = [0,1,1,2,3,5,8,13,21,34,55]
-assert 55 'func fib10() int {
-  var n int = 10
+assert 55 'func fib_for(n int) int {
   var a int = 0
   var b int = 1
   for var i int = 0; i<n; i = i + 1{
@@ -108,7 +108,21 @@ assert 55 'func fib10() int {
 }
 
 func main() {
-  return fib10()
+  return fib_for(10)
+}
+'
+assert 55 'func fib_rec(n int) int {
+  if n == 0 {
+    return 0
+  }
+  if n == 1 {
+    return 1
+  }
+  return fib_rec(n-1) + fib_rec(n-2)
+}
+
+func main() {
+  return fib_rec(10)
 }
 '
 printf '\033[32m%s\033[m\n' 'OK'
