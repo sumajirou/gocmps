@@ -81,6 +81,9 @@ assert 4  'func main() { if 0 { 1; 2; return 3 } else { return 4 } }'
 assert 3  'func main() { if 1 { 1; 2; return 3 } else { return 4 } }'
 assert 5  'func main() { if 0 { return 3 } else if 0 { return 4 } else { return 5 } }'
 
+assert 2  'func main() { var i int; if i=1;i { return 2 }; return 3 }'
+assert 3  'func main() { var i int; if i=0;i { return 2 }; return 3 }'
+
 assert 55 'func main() { var i=0; var j=0; for i=0; i<=10; i=i+1 { j=i+j }; return j; }'
 assert 3  'func main() { for { return 3 }; return 5 }'
 assert 3  'func main() { for 1 { return 3 }; return 5 }'

@@ -247,11 +247,21 @@ func (p *Parser) varDecl() *Node {
 	return &Node{kind: ND_ASSIGN_STMT, lhs: lhs, rhs: rhs}
 }
 
-// IfStmt        = "if" Expression Block [ "else" ( IfStmt | Block ) ] .
+// IfStmt           = "if" [ SimpleStmt ";" ] expr Block [ "else" ( IfStmt | Block ) ] .
 func (p *Parser) ifStmt() *Node {
 	p.consume("if")
 	p.enter_scope() // ifスコープを追加
-	node := &Node{kind: ND_IF_STMT, cond: p.expr(), then: p.block()}
+	node := &Node{kind: ND_IF_STMT}
+	if condOrInit := p.simpleStmt(); p.startsWithValue(";") {
+		// 初期化子あり
+		p.consume(";")
+		node.init = condOrInit
+		node.cond = p.expr()
+	} else {
+		// 初期化子なし
+		node.cond = condOrInit.lhs
+	}
+	node.then = p.block()
 	if p.startsWithValue("else") {
 		p.consume("else") // "else"をスキップ
 		if p.startsWithValue("if") {

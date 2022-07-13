@@ -91,6 +91,9 @@ func (cg *Codegen) gen_stmt(node *Node) {
 		fmt.Printf("  jmp   .L.return.%s\n", cg.current_fn.val) // リターンする
 	case ND_IF_STMT:
 		c := count()
+		if node.init != nil {
+			cg.gen_stmt(node.init) // init節があれば実行
+		}
 		cg.gen_expr(node.cond)                // condを計算してスタックに積み
 		fmt.Printf("  pop   rax\n")           // スタックからraxにポップし
 		fmt.Printf("  cmp   rax, 0\n")        // 比較
