@@ -184,20 +184,18 @@ func (p *Parser) funcDecl() *Node {
 func (p *Parser) block() *Node {
 	p.enter_scope() // ブロックスコープを追加
 	p.consume("{")
-
 	node := &Node{kind: ND_BLOCK, block: []*Node{}}
-	for {
-		p.consumeIfPossible(";") // ";"があればスキップ
-		if p.startsWithValue("}") {
-			p.consume("}")  // "}"をスキップ
-			p.leave_scope() // ブロックスコープを削除
-			return node
-		}
-		node.block = append(node.block, p.stmt())
+	for !p.startsWithValue("}") {
+		stmt := p.stmt()
+		node.block = append(node.block, stmt)
 		if !p.startsWithValue(";") && !p.startsWithValue("}") {
 			error_tok(p.code, p.peek(1)[0], "セミコロンが見つかりません")
 		}
+		p.consumeIfPossible(";") // ";"があればスキップ
 	}
+	p.consume("}")  // "}"をスキップ
+	p.leave_scope() // ブロックスコープを削除
+	return node
 }
 
 // statement        = VarDecl | SimpleStmt | "return" expr | Block | IfStmt | forStmt .
@@ -223,17 +221,17 @@ func (p *Parser) stmt() *Node {
 func (p *Parser) varDecl() *Node {
 	p.consume("var")
 
-	token := p.consumeWithTokenKind(TK_IDENT)
-	if _, ok := p.scope[0][token.val]; ok {
+	varname := p.consumeWithTokenKind(TK_IDENT)
+	if _, ok := p.scope[0][varname.val]; ok {
 		// 変数が現在のスコープで宣言済みなのでエラー
-		error_tok(p.code, token, "変数は宣言済みです。")
+		error_tok(p.code, varname, "変数は宣言済みです。")
 	}
 	// 宣言されていないならスコープとローカル変数リストに加える。
-	variable := &Var{name: token.val}
+	variable := &Var{name: varname.val}
 	p.scope[0][variable.name] = variable
 	p.lvar = append(p.lvar, variable)
 
-	lhs := &Node{kind: ND_VAR, token: token, val: token.val, variable: variable}
+	lhs := &Node{kind: ND_VAR, token: varname, val: varname.val, variable: variable}
 
 	if p.startsWithValue(";") {
 		error_tok(p.code, lhs.token, "型名か初期化子が必要です。")
@@ -277,44 +275,22 @@ func (p *Parser) ifStmt() *Node {
 	return node
 }
 
-// ForStmt          = "for" [ Condition | ForClause ] Block .
-// Condition        = expr .
-// ForClause        = [ InitStmt ] ";" [ Condition ] ";" [ PostStmt ] .
-// InitStmt         = SimpleStmt .
-// PostStmt         = SimpleStmt .
+// ForStmt          = "for" [ expr | ForClause ] Block .
+// ForClause        = [ SimpleStmt ] ";" [ expr ] ";" [ SimpleStmt ] .
 func (p *Parser) forStmt() *Node {
-	// for文のパターン一覧
-	// 1. for {}
-	// 2. for cond {}
-	// 3. for init?; cond?; inc? {}
 	p.consume("for")
 	p.enter_scope() // forスコープを追加
 	node := &Node{kind: ND_FOR_STMT}
-
-	// 条件式を省略したパターン
-	if p.startsWithValue("{") {
-		node.then = p.block()
-		p.leave_scope() // forスコープを削除
-		return node
-	}
-
-	if !p.startsWithValue(";") {
-		condOrInit := p.simpleStmt()
-		// 条件式のみのパターン
-		if p.startsWithValue("{") {
-			node.cond = condOrInit.lhs
-			node.then = p.block()
-			p.leave_scope() // forスコープを削除
-			return node
-		}
+	condOrInit := p.simpleStmt()
+	switch {
+	case p.startsWithValue("{") && condOrInit.kind == ND_EMPTY_STMT: // pattern 1: for {}
+	case p.startsWithValue("{") && condOrInit.kind != ND_EMPTY_STMT: // pattern 2: for cond {}
+		node.cond = condOrInit.lhs
+	case p.startsWithValue(";"): // pattern 3: for init?; cond?; inc? {}
 		node.init = condOrInit
-	}
-
-	// for句を用いるパターン
-	if p.consume(";"); !p.startsWithValue(";") {
-		node.cond = p.expr()
-	}
-	if p.consume(";"); !p.startsWithValue("{") {
+		p.consume(";")
+		node.cond = p.exprOrNil()
+		p.consume(";")
 		node.inc = p.simpleStmt()
 	}
 	node.then = p.block()
@@ -327,18 +303,16 @@ func (p *Parser) forStmt() *Node {
 // Assignment       = expr "=" expr .
 func (p *Parser) simpleStmt() *Node {
 	lhs := p.exprOrNil()
-	if lhs == nil {
+	switch {
+	case lhs == nil:
 		return &Node{kind: ND_EMPTY_STMT}
-	}
-	if !p.startsWithValue("=") {
-		return &Node{kind: ND_EXPR_STMT, lhs: lhs}
-	}
-
-	if lhs.kind != ND_VAR {
+	case p.startsWithValue("=") && lhs.kind == ND_VAR:
+		p.consume("=") // "="をスキップ
+		return &Node{kind: ND_ASSIGN_STMT, lhs: lhs, rhs: p.expr()}
+	case p.startsWithValue("=") && lhs.kind != ND_VAR:
 		error_tok(p.code, lhs.token, "左辺が変数ではありません")
 	}
-	p.consume("=") // "="をスキップ
-	return &Node{kind: ND_ASSIGN_STMT, lhs: lhs, rhs: p.expr()}
+	return &Node{kind: ND_EXPR_STMT, lhs: lhs}
 }
 
 func (p *Parser) expr() *Node {

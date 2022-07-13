@@ -136,6 +136,8 @@ func (cg *Codegen) gen_stmt(node *Node) {
 		fmt.Printf("  pop   rdi\n")        // 式の値をrdiにポップし
 		fmt.Printf("  pop   rax\n")        // 変数のアドレスをraxにポップし
 		fmt.Printf("  mov   [rax], rdi\n") // 変数に値を代入
+	case ND_EMPTY_STMT:
+		// 何もしない
 	default:
 		panic("コード生成できません")
 	}
