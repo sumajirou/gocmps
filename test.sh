@@ -83,8 +83,9 @@ assert 5  'func main() { if 0 { return 3 } else if 0 { return 4 } else { return 
 
 assert 55 'func main() { var i=0; var j=0; for i=0; i<=10; i=i+1 { j=i+j }; return j; }'
 assert 3  'func main() { for { return 3 }; return 5 }'
+assert 3  'func main() { for 1 { return 3 }; return 5 }'
+assert 5  'func main() { for 0 { return 3 }; return 5 }'
 assert 3  'func main() { for ;; { return 3 }; return 5 }'
-assert 3  'func main() { for var i int;; { return 3 }; return 5 }'
 assert 5  'func main() { for ;0; { return 3 }; return 5 }'
 assert 3  'func main() { var i int; for ;;i=i+1 { return 3 }; return 5 }'
 
@@ -100,7 +101,8 @@ assert 5  'func main() { return myadd(2,3) }; func myadd(a int, b int) int { ret
 assert 55 'func fib_for(n int) int {
   var a int = 0
   var b int = 1
-  for var i int = 0; i<n; i = i + 1{
+  var i int
+  for i = 0; i<n; i = i + 1{
     b = a+b
     a = b-a
   }

@@ -4,19 +4,20 @@
 program          = { FunctionDecl ";" } .
 FunctionDecl     = "func" ident Parameters [ "int" ] Block .
 Parameters       = "(" [ ident "int" { "," ident "int" } [ "," ] ] ")" .
-block            = "{" statementList "}" .
+Block            = "{" statementList "}" .
 statementList    = { statement ";" } .
-statement        = "return" expr | VarDecl | IfStmt | forStmt | block | SimpleStmt .
-SimpleStmt       = Assignment .
-IfStmt           = "if" Expression Block [ "else" ( IfStmt | Block ) ] .
+statement        = "return" expr | VarDecl | IfStmt | ForStmt | block | SimpleStmt .
+SimpleStmt       = ExpressionStmt | Assignment .
+IfStmt           = "if" [ SimpleStmt ";" ] expr Block [ "else" ( IfStmt | Block ) ] .
 ForStmt          = "for" [ Condition | ForClause ] Block .
-Condition        = Expression .
+Condition        = expr .
 ForClause        = [ InitStmt ] ";" [ Condition ] ";" [ PostStmt ] .
 InitStmt         = SimpleStmt .
 PostStmt         = SimpleStmt .
 VarDecl          = "var" ident ( "int" [ "=" expr ] | "=" expr ) .
-assignStmt       = expr [ "=" expr ] .
-expr             = add { "==" add | "!=" add | "<" add | "<=" add | ">" add | ">=" add } .
+ExpressionStmt   = expr .
+Assignment       = expr "=" expr .
+expr       = add { "==" add | "!=" add | "<" add | "<=" add | ">" add | ">=" add } .
 add              = mul { "+" mul | "-" mul } .
 mul              = unary { "*" unary | "/" unary } .
 unary            = primary | [ "+" | "-" ] unary .

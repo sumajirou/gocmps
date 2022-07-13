@@ -178,7 +178,7 @@ func (p *Parser) funcDecl() *Node {
 }
 
 // 以下構文規則
-// block         = "{" statementList "}" .
+// Block            = "{" statementList "}" .
 // statementList = { statement ";" } .
 func (p *Parser) block() *Node {
 	p.enter_scope() // ブロックスコープを追加
@@ -199,7 +199,7 @@ func (p *Parser) block() *Node {
 	}
 }
 
-// statement     = "return" expr | VarDecl | IfStmt | ForStmt | block | assignStmt .
+// statement        = "return" expr | VarDecl | IfStmt | ForStmt | block | SimpleStmt .
 func (p *Parser) stmt() *Node {
 	switch {
 	case p.startsWithValue("return"): // return statement
@@ -213,8 +213,8 @@ func (p *Parser) stmt() *Node {
 		return p.forStmt()
 	case p.startsWithValue("{"): // block
 		return p.block()
-	default: // assign statement
-		return p.assignStmt()
+	default: // simple statement
+		return p.simpleStmt()
 	}
 }
 
@@ -279,9 +279,9 @@ func (p *Parser) forStmt() *Node {
 
 	// 条件式のみのパターン
 	if !p.startsWithValue(";") {
-		stmt := p.stmt()
+		stmt := p.simpleStmt()
 		if p.startsWithValue("{") {
-			node.cond = stmt
+			node.cond = stmt.lhs
 			node.then = p.block()
 			p.leave_scope() // forスコープを削除
 			return node
@@ -297,15 +297,17 @@ func (p *Parser) forStmt() *Node {
 	p.consume(";") // 2つ目のセミコロンをスキップ
 
 	if !p.startsWithValue("{") {
-		node.inc = p.stmt()
+		node.inc = p.simpleStmt()
 	}
 	node.then = p.block()
 	p.leave_scope() // forスコープを削除
 	return node
 }
 
-// assignStmt = expr [ "=" expr ].
-func (p *Parser) assignStmt() *Node {
+// SimpleStmt       = ExpressionStmt | Assignment .
+// ExpressionStmt   = expr .
+// Assignment       = expr "=" expr .
+func (p *Parser) simpleStmt() *Node {
 	lhs := p.expr()
 	if !p.startsWithValue("=") {
 		return &Node{kind: ND_EXPR_STMT, lhs: lhs}
