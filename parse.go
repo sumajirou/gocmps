@@ -199,20 +199,20 @@ func (p *Parser) block() *Node {
 	}
 }
 
-// statement        = "return" expr | VarDecl | IfStmt | ForStmt | block | SimpleStmt .
+// statement        = VarDecl | SimpleStmt | "return" expr | Block | IfStmt | forStmt .
 func (p *Parser) stmt() *Node {
 	switch {
+	case p.startsWithValue("var"): // VarDecl
+		return p.varDecl()
 	case p.startsWithValue("return"): // return statement
 		p.consume("return")
 		return &Node{kind: ND_RETURN_STMT, lhs: p.expr()}
-	case p.startsWithValue("var"): // VarDecl
-		return p.varDecl()
+	case p.startsWithValue("{"): // block
+		return p.block()
 	case p.startsWithValue("if"): // IfStmt
 		return p.ifStmt()
 	case p.startsWithValue("for"): // ForStmt
 		return p.forStmt()
-	case p.startsWithValue("{"): // block
-		return p.block()
 	default: // simple statement
 		return p.simpleStmt()
 	}
@@ -274,8 +274,16 @@ func (p *Parser) ifStmt() *Node {
 	return node
 }
 
-// ForStmt       = "for" [ Condition | ForClause ] Block .
+// ForStmt          = "for" [ Condition | ForClause ] Block .
+// Condition        = expr .
+// ForClause        = [ InitStmt ] ";" [ Condition ] ";" [ PostStmt ] .
+// InitStmt         = SimpleStmt .
+// PostStmt         = SimpleStmt .
 func (p *Parser) forStmt() *Node {
+	// for文のパターン一覧
+	// 1. for {}
+	// 2. for cond {}
+	// 3. for init?; cond?; inc? {}
 	p.consume("for")
 	p.enter_scope() // forスコープを追加
 	node := &Node{kind: ND_FOR_STMT}
@@ -287,26 +295,23 @@ func (p *Parser) forStmt() *Node {
 		return node
 	}
 
-	// 条件式のみのパターン
 	if !p.startsWithValue(";") {
-		stmt := p.simpleStmt()
+		condOrInit := p.simpleStmt()
+		// 条件式のみのパターン
 		if p.startsWithValue("{") {
-			node.cond = stmt.lhs
+			node.cond = condOrInit.lhs
 			node.then = p.block()
 			p.leave_scope() // forスコープを削除
 			return node
 		}
-		node.init = stmt
+		node.init = condOrInit
 	}
 
 	// for句を用いるパターン
-	p.consume(";") // 最初のセミコロンをスキップ
-	if !p.startsWithValue(";") {
+	if p.consume(";"); !p.startsWithValue(";") {
 		node.cond = p.expr()
 	}
-	p.consume(";") // 2つ目のセミコロンをスキップ
-
-	if !p.startsWithValue("{") {
+	if p.consume(";"); !p.startsWithValue("{") {
 		node.inc = p.simpleStmt()
 	}
 	node.then = p.block()
