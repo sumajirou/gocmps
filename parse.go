@@ -19,6 +19,7 @@ const (
 	ND_FUNCCALL                    // Function call
 	ND_FUNCDECL                    // Function declaration
 	ND_EXPR_STMT                   // Expression statement
+	ND_EMPTY_STMT                  // Empty statement
 	ND_VAR                         // Variable
 	ND_NUM                         // Integer
 )
@@ -255,7 +256,9 @@ func (p *Parser) ifStmt() *Node {
 	if condOrInit := p.simpleStmt(); p.startsWithValue(";") {
 		// 初期化子あり
 		p.consume(";")
-		node.init = condOrInit
+		if condOrInit.kind != ND_EMPTY_STMT {
+			node.init = condOrInit
+		}
 		node.cond = p.expr()
 	} else {
 		// 初期化子なし
@@ -323,7 +326,10 @@ func (p *Parser) forStmt() *Node {
 // ExpressionStmt   = expr .
 // Assignment       = expr "=" expr .
 func (p *Parser) simpleStmt() *Node {
-	lhs := p.expr()
+	lhs := p.exprOrNil()
+	if lhs == nil {
+		return &Node{kind: ND_EMPTY_STMT}
+	}
 	if !p.startsWithValue("=") {
 		return &Node{kind: ND_EXPR_STMT, lhs: lhs}
 	}
@@ -335,8 +341,16 @@ func (p *Parser) simpleStmt() *Node {
 	return &Node{kind: ND_ASSIGN_STMT, lhs: lhs, rhs: p.expr()}
 }
 
-// expr = add { "==" add | "!=" add | "<" add | "<=" add | ">" add | ">=" add } .
 func (p *Parser) expr() *Node {
+	expr := p.exprOrNil()
+	if expr == nil {
+		error_tok(p.code, p.peek(1)[0], "不正なトークンです")
+	}
+	return expr
+}
+
+// expr = add { "==" add | "!=" add | "<" add | "<=" add | ">" add | ">=" add } .
+func (p *Parser) exprOrNil() *Node {
 	node := p.add()
 	for {
 		switch {
@@ -435,7 +449,6 @@ func (p *Parser) primary() *Node {
 		p.consume(")")
 		return node
 	}
-	error_tok(p.code, p.peek(1)[0], "不正なトークンです")
 	return nil
 }
 

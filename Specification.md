@@ -7,7 +7,7 @@ Parameters       = "(" [ ident "int" { "," ident "int" } [ "," ] ] ")" .
 Block            = "{" statementList "}" .
 statementList    = { statement ";" } .
 statement        = "return" expr | VarDecl | IfStmt | ForStmt | block | SimpleStmt .
-SimpleStmt       = ExpressionStmt | Assignment .
+SimpleStmt       = EmptyStmt | ExpressionStmt | Assignment .
 IfStmt           = "if" [ SimpleStmt ";" ] expr Block [ "else" ( IfStmt | Block ) ] .
 ForStmt          = "for" [ Condition | ForClause ] Block .
 Condition        = expr .
@@ -15,6 +15,7 @@ ForClause        = [ InitStmt ] ";" [ Condition ] ";" [ PostStmt ] .
 InitStmt         = SimpleStmt .
 PostStmt         = SimpleStmt .
 VarDecl          = "var" ident ( "int" [ "=" expr ] | "=" expr ) .
+EmptyStmt        = .
 ExpressionStmt   = expr .
 Assignment       = expr "=" expr .
 expr       = add { "==" add | "!=" add | "<" add | "<=" add | ">" add | ">=" add } .
