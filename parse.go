@@ -81,6 +81,27 @@ func (p *Parser) read(n int) []*Token {
 	return result
 }
 
+func (p *Parser) consume(s string) *Token {
+	if !p.startsWithValue(s) {
+		error_tok(p.code, p.peek(1)[0], "%sが見つかりません", s)
+	}
+	return p.read(1)[0]
+}
+
+func (p *Parser) consumeWithTokenKind(kind TokenKind) *Token {
+	if !p.startsWithTokenKind(kind) {
+		error_tok(p.code, p.peek(1)[0], "%sは不正なトークン種別です", kind)
+	}
+	return p.read(1)[0]
+}
+
+func (p *Parser) consumeIfPossible(s string) *Token {
+	if p.startsWithValue(s) {
+		return p.read(1)[0]
+	}
+	return nil
+}
+
 func (p *Parser) startsWithTokenKind(kind TokenKind) bool {
 	return p.tokens[p.i].kind == kind
 }
@@ -105,10 +126,7 @@ func (p *Parser) parse() []*Node {
 	for !p.startsWithTokenKind(TK_EOF) {
 		fn := p.funcDecl()
 		functions = append(functions, fn)
-		if !p.startsWithValue(";") {
-			error_tok(p.code, p.peek(1)[0], "セミコロンが見つかりません")
-		}
-		p.read(1) // ";"をスキップ
+		p.consume(";")
 	}
 	p.leave_scope() // ファイルスコープを削除
 	return functions
@@ -117,41 +135,30 @@ func (p *Parser) parse() []*Node {
 // FunctionDecl     = "func" ident Parameters [ "int" ] Block .
 // Parameters       = "(" [ ident "int" { "," ident "int" } [ "," ] ] ")" .
 func (p *Parser) funcDecl() *Node {
-	p.enter_scope() // スコープを追加
-	p.lvar = []*Var{}
-	if !p.startsWithValue("func") {
-		error_tok(p.code, p.peek(1)[0], "funcが見つかりません")
-	}
-	p.read(1) // "func"をスキップ
-	token := p.read(1)[0]
-	if !p.startsWithValue("(") {
-		error_tok(p.code, p.peek(1)[0], "(が見つかりません")
-	}
-	p.read(1) // "("をスキップ
-	params := []*Var{}
+	p.enter_scope()    // スコープを追加
+	p.lvar = []*Var{}  // 関数のローカル変数のリスト
+	params := []*Var{} // 仮引数のリスト
+
+	p.consume("func")
+	funcname := p.consumeWithTokenKind(TK_IDENT) // 関数名
+	p.consume("(")
 	for !p.startsWithValue(")") {
-		token := p.read(1)[0]
-		if _, ok := p.scope[0][token.val]; ok {
-			// 仮引数名が重複しているためエラー
-			error_tok(p.code, token, "仮引数名が重複しています")
+		param := p.consumeWithTokenKind(TK_IDENT) // 仮引数名
+		if _, ok := p.scope[0][param.val]; ok {
+			error_tok(p.code, param, "仮引数名が重複しています")
 		}
-		variable := &Var{name: token.val}
-		params = append(params, variable)
-		p.scope[0][variable.name] = variable
-		p.read(1) // "int"をスキップ
+		variable := &Var{name: param.val}    // 仮引数
+		params = append(params, variable)    // 変数リストに仮引数を追加
+		p.scope[0][variable.name] = variable // 現在のスコープに仮引数を追加
+		p.consume("int")                     // "int"をスキップ
 		if !p.startsWithValue(",") && !p.startsWithValue(")") {
 			error_tok(p.code, p.peek(1)[0], "不正なトークン")
 		}
-		if p.startsWithValue(",") {
-			p.read(1) // ","をスキップ
-		}
+		p.consumeIfPossible(",") // ","があればスキップ
 	}
-
-	p.read(1) // ")"をスキップ
-	if p.startsWithValue("int") {
-		p.read(1) // "int"をスキップ
-	}
-	fn := &Node{kind: ND_FUNCDECL, token: token, val: token.val, body: p.block(), params: params, lvar: p.lvar}
+	p.consume(")")             // ")"をスキップ
+	p.consumeIfPossible("int") // "int"があればスキップ
+	fn := &Node{kind: ND_FUNCDECL, token: funcname, val: funcname.val, body: p.block(), params: params, lvar: p.lvar}
 
 	// 変数のオフセット計算
 	offset := 0
@@ -164,8 +171,7 @@ func (p *Parser) funcDecl() *Node {
 		variable.offset = offset
 	}
 
-	// 関数のオフセット計算
-	fn.offset = align_to(offset, 16)
+	fn.offset = align_to(offset, 16) // 関数のオフセット計算
 
 	p.leave_scope() // スコープを削除
 	return fn
@@ -176,18 +182,13 @@ func (p *Parser) funcDecl() *Node {
 // statementList = { statement ";" } .
 func (p *Parser) block() *Node {
 	p.enter_scope() // ブロックスコープを追加
-	if !p.startsWithValue("{") {
-		error_tok(p.code, p.peek(1)[0], "{が見つかりません")
-	}
-	p.read(1) // "{"をスキップ
+	p.consume("{")
 
 	node := &Node{kind: ND_BLOCK, block: []*Node{}}
 	for {
-		if p.startsWithValue(";") {
-			p.read(1) // ";"をスキップ
-		}
+		p.consumeIfPossible(";") // ";"があればスキップ
 		if p.startsWithValue("}") {
-			p.read(1)       // "}"をスキップ
+			p.consume("}")  // "}"をスキップ
 			p.leave_scope() // ブロックスコープを削除
 			return node
 		}
@@ -200,39 +201,28 @@ func (p *Parser) block() *Node {
 
 // statement     = "return" expr | VarDecl | IfStmt | ForStmt | block | assignStmt .
 func (p *Parser) stmt() *Node {
-	// return statement
-	if p.startsWithValue("return") {
-		p.read(1) // "returnをスキップ"
+	switch {
+	case p.startsWithValue("return"): // return statement
+		p.consume("return")
 		return &Node{kind: ND_RETURN_STMT, lhs: p.expr()}
-	}
-	// VarDecl
-	if p.startsWithValue("var") {
+	case p.startsWithValue("var"): // VarDecl
 		return p.varDecl()
-	}
-	// IfStmt
-	if p.startsWithValue("if") {
+	case p.startsWithValue("if"): // IfStmt
 		return p.ifStmt()
-	}
-	// ForStmt
-	if p.startsWithValue("for") {
+	case p.startsWithValue("for"): // ForStmt
 		return p.forStmt()
-	}
-	// block
-	if p.startsWithValue("{") {
+	case p.startsWithValue("{"): // block
 		return p.block()
+	default: // assign statement
+		return p.assignStmt()
 	}
-	// assign statement
-	return p.assignStmt()
 }
 
 // VarDecl       = "var" ident ( "int" [ "=" expr ] | "=" expr ) .
 func (p *Parser) varDecl() *Node {
-	if !p.startsWithValue("var") {
-		error_tok(p.code, p.peek(1)[0], "varが見つかりません")
-	}
-	p.read(1) // "var"をスキップ
+	p.consume("var")
 
-	token := p.read(1)[0]
+	token := p.consumeWithTokenKind(TK_IDENT)
 	if _, ok := p.scope[0][token.val]; ok {
 		// 変数が現在のスコープで宣言済みなのでエラー
 		error_tok(p.code, token, "変数は宣言済みです。")
@@ -248,12 +238,10 @@ func (p *Parser) varDecl() *Node {
 		error_tok(p.code, lhs.token, "型名か初期化子が必要です。")
 	}
 
-	if p.startsWithValue("int") {
-		p.read(1) // "int"をスキップ
-	}
+	p.consumeIfPossible("int")
 	rhs := &Node{kind: ND_NUM, val: "0"} // 宣言のみの場合はゼロ値で初期化
 	if p.startsWithValue("=") {
-		p.read(1) // "="をスキップ
+		p.consume("=") // "="をスキップ
 		rhs = p.expr()
 	}
 	return &Node{kind: ND_ASSIGN_STMT, lhs: lhs, rhs: rhs}
@@ -261,14 +249,11 @@ func (p *Parser) varDecl() *Node {
 
 // IfStmt        = "if" Expression Block [ "else" ( IfStmt | Block ) ] .
 func (p *Parser) ifStmt() *Node {
-	if !p.startsWithValue("if") {
-		error_tok(p.code, p.peek(1)[0], "ifが見つかりません")
-	}
-	p.read(1)       // "if"をスキップ
+	p.consume("if")
 	p.enter_scope() // ifスコープを追加
 	node := &Node{kind: ND_IF_STMT, cond: p.expr(), then: p.block()}
 	if p.startsWithValue("else") {
-		p.read(1) // "else"をスキップ
+		p.consume("else") // "else"をスキップ
 		if p.startsWithValue("if") {
 			node.els = p.ifStmt()
 		} else {
@@ -281,24 +266,21 @@ func (p *Parser) ifStmt() *Node {
 
 // ForStmt       = "for" [ Condition | ForClause ] Block .
 func (p *Parser) forStmt() *Node {
-	if !p.startsWithValue("for") {
-		error_tok(p.code, p.peek(1)[0], "forが見つかりません")
-	}
-	p.read(1)       // "for"をスキップ
+	p.consume("for")
 	p.enter_scope() // forスコープを追加
-
 	node := &Node{kind: ND_FOR_STMT}
+
+	// 条件式を省略したパターン
 	if p.startsWithValue("{") {
-		// 条件式を省略したパターン
 		node.then = p.block()
 		p.leave_scope() // forスコープを削除
 		return node
 	}
 
+	// 条件式のみのパターン
 	if !p.startsWithValue(";") {
 		stmt := p.stmt()
 		if p.startsWithValue("{") {
-			// 条件式のみのパターン
 			node.cond = stmt
 			node.then = p.block()
 			p.leave_scope() // forスコープを削除
@@ -306,13 +288,13 @@ func (p *Parser) forStmt() *Node {
 		}
 		node.init = stmt
 	}
-	// for句を用いるパターン
-	p.read(1) // 最初のセミコロンをスキップ
 
+	// for句を用いるパターン
+	p.consume(";") // 最初のセミコロンをスキップ
 	if !p.startsWithValue(";") {
 		node.cond = p.expr()
 	}
-	p.read(1) // 2つ目のセミコロンをスキップ
+	p.consume(";") // 2つ目のセミコロンをスキップ
 
 	if !p.startsWithValue("{") {
 		node.inc = p.stmt()
@@ -325,48 +307,44 @@ func (p *Parser) forStmt() *Node {
 // assignStmt = expr [ "=" expr ].
 func (p *Parser) assignStmt() *Node {
 	lhs := p.expr()
-	if p.startsWithValue("=") {
-		if lhs.kind != ND_VAR {
-			error_tok(p.code, lhs.token, "左辺が変数ではありません")
-		}
-		p.read(1) // "="をスキップ
-		rhs := p.expr()
-		return &Node{kind: ND_ASSIGN_STMT, lhs: lhs, rhs: rhs}
+	if !p.startsWithValue("=") {
+		return &Node{kind: ND_EXPR_STMT, lhs: lhs}
 	}
-	return &Node{kind: ND_EXPR_STMT, lhs: lhs}
+
+	if lhs.kind != ND_VAR {
+		error_tok(p.code, lhs.token, "左辺が変数ではありません")
+	}
+	p.consume("=") // "="をスキップ
+	return &Node{kind: ND_ASSIGN_STMT, lhs: lhs, rhs: p.expr()}
 }
 
 // expr = add { "==" add | "!=" add | "<" add | "<=" add | ">" add | ">=" add } .
 func (p *Parser) expr() *Node {
 	node := p.add()
 	for {
-		if p.startsWithValue("==") {
-			p.read(1)
+		switch {
+		case p.startsWithValue("=="):
+			p.consume("==")
 			node = &Node{kind: ND_EQ, lhs: node, rhs: p.add()}
 			continue
-		}
-		if p.startsWithValue("!=") {
-			p.read(1)
+		case p.startsWithValue("!="):
+			p.consume("!=")
 			node = &Node{kind: ND_NE, lhs: node, rhs: p.add()}
 			continue
-		}
-		if p.startsWithValue("<") {
-			p.read(1)
+		case p.startsWithValue("<"):
+			p.consume("<")
 			node = &Node{kind: ND_LT, lhs: node, rhs: p.add()}
 			continue
-		}
-		if p.startsWithValue("<=") {
-			p.read(1)
+		case p.startsWithValue("<="):
+			p.consume("<=")
 			node = &Node{kind: ND_LE, lhs: node, rhs: p.add()}
 			continue
-		}
-		if p.startsWithValue(">") {
-			p.read(1)
+		case p.startsWithValue(">"):
+			p.consume(">")
 			node = &Node{kind: ND_LT, lhs: p.add(), rhs: node}
 			continue
-		}
-		if p.startsWithValue(">=") {
-			p.read(1)
+		case p.startsWithValue(">="):
+			p.consume(">=")
 			node = &Node{kind: ND_LE, lhs: p.add(), rhs: node}
 			continue
 		}
@@ -378,13 +356,13 @@ func (p *Parser) expr() *Node {
 func (p *Parser) add() *Node {
 	node := p.mul()
 	for {
-		if p.startsWithValue("+") {
-			p.read(1)
+		switch {
+		case p.startsWithValue("+"):
+			p.consume("+")
 			node = &Node{kind: ND_ADD, lhs: node, rhs: p.mul()}
 			continue
-		}
-		if p.startsWithValue("-") {
-			p.read(1)
+		case p.startsWithValue("-"):
+			p.consume("-")
 			node = &Node{kind: ND_SUB, lhs: node, rhs: p.mul()}
 			continue
 		}
@@ -396,13 +374,13 @@ func (p *Parser) add() *Node {
 func (p *Parser) mul() *Node {
 	node := p.unary()
 	for {
-		if p.startsWithValue("*") {
-			p.read(1)
+		switch {
+		case p.startsWithValue("*"):
+			p.consume("*")
 			node = &Node{kind: ND_MUL, lhs: node, rhs: p.unary()}
 			continue
-		}
-		if p.startsWithValue("/") {
-			p.read(1)
+		case p.startsWithValue("/"):
+			p.consume("/")
 			node = &Node{kind: ND_DIV, lhs: node, rhs: p.unary()}
 			continue
 		}
@@ -412,55 +390,48 @@ func (p *Parser) mul() *Node {
 
 // unary = primary | [ "+" | "-" ] unary .
 func (p *Parser) unary() *Node {
-	if p.startsWithValue("+") {
-		p.read(1)
+	switch {
+	case p.startsWithValue("+"):
+		p.consume("+")
 		return p.unary()
-	}
-	if p.startsWithValue("-") {
-		p.read(1)
+	case p.startsWithValue("-"):
+		p.consume("-")
 		zero := &Node{kind: ND_NUM, val: "0"}
 		return &Node{kind: ND_SUB, lhs: zero, rhs: p.unary()}
 	}
 	return p.primary()
 }
 
-// primary       = num | ident | funcall | "(" expr ")" .
+// primary       = num | ident | funccall | "(" expr ")" .
 func (p *Parser) primary() *Node {
-	if p.startsWithTokenKind(TK_NUM) {
+	switch {
+	case p.startsWithTokenKind(TK_NUM):
 		return p.num()
-	}
-
-	if p.startsWithTokenKind(TK_IDENT) {
+	case p.startsWithTokenKind(TK_IDENT):
 		if p.peek(2)[1].val == "(" {
-			return p.funcall()
+			return p.funccall()
 		}
 		return p.ident()
+	case p.startsWithValue("("):
+		p.consume("(")
+		node := p.expr()
+		p.consume(")")
+		return node
 	}
-
-	if !p.startsWithValue("(") {
-		error_tok(p.code, p.peek(1)[0], "不正なトークンです")
-	}
-	p.read(1)
-
-	node := p.expr()
-
-	if !p.startsWithValue(")") {
-		error_tok(p.code, p.peek(1)[0], "括弧が閉じられていません")
-	}
-	p.read(1)
-
-	return node
+	error_tok(p.code, p.peek(1)[0], "不正なトークンです")
+	return nil
 }
 
 // num = digit { digit } .
 func (p *Parser) num() *Node {
-	token := p.read(1)[0]
+	token := p.consumeWithTokenKind(TK_NUM)
 	return &Node{kind: ND_NUM, token: token, val: token.val}
 }
 
 // ident = letter { alnum } .
 func (p *Parser) ident() *Node {
-	token := p.read(1)[0]
+	token := p.consumeWithTokenKind(TK_IDENT)
+	// スコープから変数を探す
 	for _, m := range p.scope {
 		if variable, ok := m[token.val]; ok {
 			return &Node{kind: ND_VAR, token: token, val: token.val, variable: variable}
@@ -471,22 +442,22 @@ func (p *Parser) ident() *Node {
 	return nil
 }
 
-// funcall = ident "(" [ ExpressionList [ "," ] ] ")" .
+// funccall = ident "(" [ ExpressionList [ "," ] ] ")" .
 // ExpressionList = Expression { "," Expression } .
-func (p *Parser) funcall() *Node {
-	funcname := p.read(1)[0]
-	node := &Node{kind: ND_FUNCCALL, val: funcname.val}
-	p.read(1)             // "("をスキップ
-	node.args = []*Node{} //ExpressionList
+func (p *Parser) funccall() *Node {
+	funcname := p.consumeWithTokenKind(TK_IDENT)
+	node := &Node{kind: ND_FUNCCALL, val: funcname.val, args: []*Node{}}
+	p.consume("(")
 	for !p.startsWithValue(")") {
 		node.args = append(node.args, p.expr())
-		if p.startsWithValue(",") {
-			p.read(1) // ","をスキップ
+		if !p.startsWithValue(",") && !p.startsWithValue(")") {
+			error_tok(p.code, p.peek(1)[0], "不正なトークン")
 		}
+		p.consumeIfPossible(",")
 	}
 	if len(node.args) > 6 {
 		error_tok(p.code, funcname, "引数が多すぎます(6個以内)")
 	}
-	p.read(1) // ")"をスキップ
+	p.consume(")")
 	return node
 }

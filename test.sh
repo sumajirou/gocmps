@@ -67,11 +67,11 @@ assert 3  'func main() { var foo=3; return foo }'
 assert 8  'func main() { var foo123=3; var bar=5; return foo123+bar }'
 
 assert 3  'func main() { { 1; { 2; }; return 3; }; }'
-assert 4  'func main() {{}; {;}; {1;}; {2;3}; return 4}'
+assert 4  'func main() { {}; {;}; {1;}; {2;3}; return 4}'
 
-assert 6  'func main() {var a int = 1; var b int; b=2; var c=3; return a+b+c}'
-assert 4  'func main() {var a int; {a=4}; return a}'
-assert 0  'func main() {var a int; {var a int = 4}; return a}'
+assert 6  'func main() { var a int = 1; var b int; b=2; var c=3; return a+b+c}'
+assert 4  'func main() { var a int; {a=4}; return a}'
+assert 0  'func main() { var a int; {var a int = 4}; return a}'
 
 assert 3  'func main() { if 0 { return 2 }; return 3 }'
 assert 3  'func main() { if 1-1 { return 2 }; return 3 }'
