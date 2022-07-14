@@ -6,20 +6,22 @@ import (
 	"strings"
 )
 
-func verror_at(code string, loc int, fmtstr string, ap ...any) {
+func verror_at(code string, line int, col int, fmtstr string, ap ...any) {
 	// TODO: ファイル名とスコープ ファイル名と行数と文字数エラー内容 エラー位置表示
-	fmt.Fprintln(os.Stderr, code)
-	fmt.Fprint(os.Stderr, strings.Repeat(" ", loc)+"^ ")
+	lines := strings.Split(code, "\n")
+	fmt.Fprintln(os.Stderr, lines[line-1])
+	fmt.Fprint(os.Stderr, strings.Repeat(" ", col-1)+"^ ")
+	fmt.Fprintf(os.Stderr, "[%d:%d] ", line, col)
 	fmt.Fprintf(os.Stderr, fmtstr+"\n", ap...)
 	os.Exit(1)
 }
 
-func error_at(code string, loc int, fmtstr string, ap ...any) {
-	verror_at(code, loc, fmtstr, ap...)
+func error_at(code string, line int, col int, fmtstr string, ap ...any) {
+	verror_at(code, line, col, fmtstr, ap...)
 }
 
 func error_tok(code string, token *Token, fmtstr string, ap ...any) {
-	verror_at(code, token.loc, fmtstr, ap...)
+	verror_at(code, token.line, token.col, fmtstr, ap...)
 }
 
 func main() {

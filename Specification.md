@@ -18,7 +18,7 @@ VarDecl          = "var" ident ( "int" [ "=" expr ] | "=" expr ) .
 EmptyStmt        = .
 ExpressionStmt   = expr .
 Assignment       = expr "=" expr .
-expr       = add { "==" add | "!=" add | "<" add | "<=" add | ">" add | ">=" add } .
+expr             = add { "==" add | "!=" add | "<" add | "<=" add | ">" add | ">=" add } .
 add              = mul { "+" mul | "-" mul } .
 mul              = unary { "*" unary | "/" unary } .
 unary            = primary | [ "+" | "-" ] unary .

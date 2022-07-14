@@ -14,7 +14,7 @@ assert() {
   expected="$1"
   input="$2"
 
-  ./gocmps "$input" > tmp.s
+  ./gocmps "$input" > tmp.s || exit
   cc -o tmp tmp.s tmp2.o
   ./tmp
   actual="$?"
@@ -31,7 +31,7 @@ assert() {
 assert 0  'func main() { return 0 }'
 assert 42 'func main() { return 42 }'
 assert 21 'func main() { return 5+20-4 }'
-assert 41 'func main() { return  12 + 34 - 5 }'
+assert 41 'func main() { return 12 + 34 - 5 }'
 assert 47 'func main() { return 5+6*7 }'
 assert 15 'func main() { return 5*(9-6) }'
 assert 4  'func main() { return (3+5)/2 }'

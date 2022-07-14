@@ -12,13 +12,16 @@ const (
 type Token struct {
 	kind TokenKind // Token kind
 	val  string    // token value
-	loc  int       // Token location
+	line int       // line number
+	col  int       // column number
 }
 
 type Tokenizer struct {
 	code   string
 	tokens []*Token
 	i      int
+	line   int // line number
+	col    int // column number
 }
 
 func isDigit(c byte) bool {
@@ -81,6 +84,12 @@ func (tn *Tokenizer) read(n int) string {
 	}
 	result := tn.code[tn.i : tn.i+n]
 	tn.i += n
+	if result == "\n" {
+		tn.line += 1
+		tn.col = 1
+	} else {
+		tn.col += n
+	}
 	return result
 }
 
@@ -91,8 +100,9 @@ func (tn *Tokenizer) startswith(s string) bool {
 	}
 	return tn.code[tn.i:tn.i+n] == s
 }
-
 func (tn *Tokenizer) tokenize() []*Token {
+	tn.line = 1
+	tn.col = 1
 	for tn.i < len(tn.code) {
 		c := tn.peek(1)[0]
 		// TODO: ファイルの先頭が空行のパターン考慮しろ
@@ -108,7 +118,7 @@ func (tn *Tokenizer) tokenize() []*Token {
 			if tk.kind == TK_IDENT || tk.kind == TK_NUM ||
 				tk.val == "break" || tk.val == "continue" || tk.val == "fallthrough" || tk.val == "return" ||
 				tk.val == "++" || tk.val == "--" || tk.val == ")" || tk.val == "]" || tk.val == "}" {
-				semicolon := &Token{kind: TK_RESERVED, loc: tn.i, val: ";"}
+				semicolon := &Token{kind: TK_RESERVED, line: tn.line, col: tn.col + 1, val: ";"}
 				tn.tokens = append(tn.tokens, semicolon)
 			}
 			tn.read(1)
@@ -123,7 +133,8 @@ func (tn *Tokenizer) tokenize() []*Token {
 
 		// Numeric literal
 		if isDigit(c) {
-			token := &Token{kind: TK_NUM, loc: tn.i, val: tn.read(1)}
+			token := &Token{kind: TK_NUM, line: tn.line, col: tn.col}
+			token.val = tn.read(1)
 			for isDigit(tn.peek(1)[0]) {
 				token.val += tn.read(1)
 			}
@@ -133,7 +144,8 @@ func (tn *Tokenizer) tokenize() []*Token {
 
 		// Keywords or local variables
 		if isLetter(c) {
-			token := &Token{kind: TK_IDENT, loc: tn.i, val: tn.read(1)}
+			token := &Token{kind: TK_IDENT, line: tn.line, col: tn.col}
+			token.val = tn.read(1)
 			for isAlnum(tn.peek(1)[0]) {
 				token.val += tn.read(1)
 			}
@@ -146,21 +158,23 @@ func (tn *Tokenizer) tokenize() []*Token {
 
 		// Multi-letter punctuators
 		if tn.startswith("==") || tn.startswith("!=") || tn.startswith("<=") || tn.startswith(">=") {
-			token := &Token{kind: TK_RESERVED, loc: tn.i, val: tn.read(2)}
+			token := &Token{kind: TK_RESERVED, line: tn.line, col: tn.col}
+			token.val = tn.read(2)
 			tn.tokens = append(tn.tokens, token)
 			continue
 		}
 
 		// Single-letter punctuators
 		if isPunct(c) {
-			token := &Token{kind: TK_RESERVED, loc: tn.i, val: tn.read(1)}
+			token := &Token{kind: TK_RESERVED, line: tn.line, col: tn.col}
+			token.val = tn.read(1)
 			tn.tokens = append(tn.tokens, token)
 			continue
 		}
 
-		error_at(tn.code, tn.i, "%sは認識できません", string(c))
+		error_at(tn.code, tn.line, tn.col, "%sは認識できません", string(c))
 	}
-	eof_token := &Token{kind: TK_EOF, loc: tn.i}
+	eof_token := &Token{kind: TK_EOF, line: tn.line, col: tn.col}
 	tn.tokens = append(tn.tokens, eof_token)
 
 	return tn.tokens
