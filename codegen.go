@@ -17,10 +17,17 @@ func count() int {
 	return counter
 }
 
-func (cg *Codegen) gen_lval(node *Node) {
-	fmt.Printf("  mov   rax, rbp\n")
-	fmt.Printf("  sub   rax, %d\n", node.variable.offset)
-	fmt.Printf("  push  rax\n") // 変数のアドレスをスタックに積む
+func (cg *Codegen) gen_addr(node *Node) {
+	switch node.kind {
+	case ND_VAR:
+		fmt.Printf("  mov   rax, rbp\n")
+		fmt.Printf("  sub   rax, %d\n", node.variable.offset)
+		fmt.Printf("  push  rax\n") // 変数のアドレスをスタックに積む
+	case ND_DEREF:
+		cg.gen_expr(node.lhs) // lhsを評価しスタックに積む
+	default:
+		error_tok(cg.code, node.token, "アドレスが取得できません")
+	}
 }
 
 func (cg *Codegen) gen_expr(node *Node) {
@@ -29,9 +36,17 @@ func (cg *Codegen) gen_expr(node *Node) {
 		fmt.Printf("  push  %s\n", node.val) // 整数リテラルをスタックに積む
 		return
 	case ND_VAR:
-		cg.gen_lval(node)             // 変数のアドレスをスタックに積む
+		cg.gen_addr(node)             // 変数のアドレスをスタックに積む
 		fmt.Printf("  pop   rax\n")   // 変数のアドレスをポップ
 		fmt.Printf("  push  [rax]\n") // 変数の値をスタックに積む
+		return
+	case ND_DEREF:
+		cg.gen_expr(node.lhs)         // lhsを評価しスタックに積む
+		fmt.Printf("  pop   rax\n")   // 変数のアドレスをポップ
+		fmt.Printf("  push  [rax]\n") // 変数の値をスタックに積む
+		return
+	case ND_ADDR:
+		cg.gen_addr(node.lhs) // 変数のアドレスをスタックに積む
 		return
 	case ND_FUNCCALL:
 		for _, v := range node.args {
@@ -131,7 +146,7 @@ func (cg *Codegen) gen_stmt(node *Node) {
 		cg.gen_expr(node.lhs)       // 式の値を計算してスタックに積み
 		fmt.Printf("  pop   rax\n") // スタックの値を捨てる
 	case ND_ASSIGN_STMT:
-		cg.gen_lval(node.lhs)              // 左辺のアドレスを計算してスタックに積み
+		cg.gen_addr(node.lhs)              // 左辺のアドレスを計算してスタックに積み
 		cg.gen_expr(node.rhs)              // 右辺の式の値を計算してスタックに積み
 		fmt.Printf("  pop   rdi\n")        // 式の値をrdiにポップし
 		fmt.Printf("  pop   rax\n")        // 変数のアドレスをraxにポップし

@@ -134,4 +134,10 @@ func main() {
   return fib_rec(10)
 }
 '
+
+assert 3 'func main() { var x int = 3; return *&x; }'
+assert 3 'func main() { var x int = 3; return *&*&x; }'
+assert 3 'func main() { var x int = 3; var y = &x; var z = &y; return **z; }'
+assert 5 'func main() { var x int = 3; var y = &x; *y = 5; return x; }'
+
 printf '\033[32m%s\033[m\n' 'OK'

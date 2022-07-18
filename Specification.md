@@ -21,7 +21,8 @@ Assignment       = expr "=" expr .
 expr             = add { "==" add | "!=" add | "<" add | "<=" add | ">" add | ">=" add } .
 add              = mul { "+" mul | "-" mul } .
 mul              = unary { "*" unary | "/" unary } .
-unary            = primary | [ "+" | "-" ] unary .
+unary            = primary | unary_op unary .
+unary_op         = "+" | "-" | "*" | "&" .
 primary          = num | ident | funcall | "(" expr ")" .
 funcall          = ident "(" [ ExpressionList [ "," ] ] ")" .
 ExpressionList   = Expression { "," Expression } .

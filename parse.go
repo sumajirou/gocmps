@@ -12,6 +12,8 @@ const (
 	ND_LT                          // <
 	ND_LE                          // <=
 	ND_ASSIGN_STMT                 // =
+	ND_ADDR                        // unary &
+	ND_DEREF                       // unary *
 	ND_RETURN_STMT                 // "return"
 	ND_IF_STMT                     // "if"
 	ND_FOR_STMT                    // "for"
@@ -306,11 +308,9 @@ func (p *Parser) simpleStmt() *Node {
 	switch {
 	case lhs == nil:
 		return &Node{kind: ND_EMPTY_STMT}
-	case p.startsWithValue("=") && lhs.kind == ND_VAR:
+	case p.startsWithValue("="):
 		p.consume("=") // "="をスキップ
 		return &Node{kind: ND_ASSIGN_STMT, lhs: lhs, rhs: p.expr()}
-	case p.startsWithValue("=") && lhs.kind != ND_VAR:
-		error_tok(p.code, lhs.token, "左辺が変数ではありません")
 	}
 	return &Node{kind: ND_EXPR_STMT, lhs: lhs}
 }
@@ -393,7 +393,8 @@ func (p *Parser) mul() *Node {
 	}
 }
 
-// unary = primary | [ "+" | "-" ] unary .
+// unary            = primary | unary_op unary .
+// unary_op         = "+" | "-" | "*" | "&" .
 func (p *Parser) unary() *Node {
 	switch {
 	case p.startsWithValue("+"):
@@ -403,6 +404,12 @@ func (p *Parser) unary() *Node {
 		p.consume("-")
 		zero := &Node{kind: ND_NUM, val: "0"}
 		return &Node{kind: ND_SUB, lhs: zero, rhs: p.unary()}
+	case p.startsWithValue("*"):
+		p.consume("*")
+		return &Node{kind: ND_DEREF, lhs: p.unary()}
+	case p.startsWithValue("&"):
+		p.consume("&")
+		return &Node{kind: ND_ADDR, lhs: p.unary()}
 	}
 	return p.primary()
 }
