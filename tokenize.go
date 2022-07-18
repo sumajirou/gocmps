@@ -104,17 +104,16 @@ func (tn *Tokenizer) startswith(s string) bool {
 	}
 	return tn.code[tn.i:tn.i+n] == s
 }
+
 func (tn *Tokenizer) tokenize() []*Token {
 	tn.line = 1
 	tn.col = 1
 	for tn.i < len(tn.code) {
 		c := tn.peek(1)[0]
-		// ファイルの先頭が空行
-		if c == '\n' && len(tn.tokens) == 0 {
+		switch {
+		case c == '\n' && len(tn.tokens) == 0: // ファイルの先頭が空行
 			tn.read(1)
-			continue
-		}
-		if c == '\n' {
+		case c == '\n':
 			keywords := []string{"break", "continue", "fallthrough", "return", "++", "--", ")", "]", "}"}
 			tk := tn.tokens[len(tn.tokens)-1] // 改行直前のトークン
 			// 特定の条件でセミコロンを自動挿入する
@@ -123,28 +122,16 @@ func (tn *Tokenizer) tokenize() []*Token {
 				tn.tokens = append(tn.tokens, semicolon)
 			}
 			tn.read(1)
-			continue
-		}
-
-		// Skip whitespace characters.
-		if isSpace(c) {
+		case isSpace(c): // Skip whitespace characters.
 			tn.read(1)
-			continue
-		}
-
-		// Numeric literal
-		if isDigit(c) {
+		case isDigit(c): // Numeric literal
 			token := &Token{kind: TK_NUM, line: tn.line, col: tn.col}
 			token.val = tn.read(1)
 			for isDigit(tn.peek(1)[0]) {
 				token.val += tn.read(1)
 			}
 			tn.tokens = append(tn.tokens, token)
-			continue
-		}
-
-		// Keywords or local variables
-		if isLetter(c) {
+		case isLetter(c): // Keywords or local variables
 			token := &Token{kind: TK_IDENT, line: tn.line, col: tn.col}
 			token.val = tn.read(1)
 			for isAlnum(tn.peek(1)[0]) {
@@ -154,29 +141,19 @@ func (tn *Tokenizer) tokenize() []*Token {
 				token.kind = TK_RESERVED
 			}
 			tn.tokens = append(tn.tokens, token)
-			continue
-		}
-
-		// Multi-letter punctuators
-		if contains([]string{"==", "!=", "<=", ">="}, tn.peek(2)) {
+		case contains([]string{"==", "!=", "<=", ">="}, tn.peek(2)): // Multi-letter punctuators
 			token := &Token{kind: TK_RESERVED, line: tn.line, col: tn.col}
 			token.val = tn.read(2)
 			tn.tokens = append(tn.tokens, token)
-			continue
-		}
-
-		// Single-letter punctuators
-		if isPunct(c) {
+		case isPunct(c): // Single-letter punctuators
 			token := &Token{kind: TK_RESERVED, line: tn.line, col: tn.col}
 			token.val = tn.read(1)
 			tn.tokens = append(tn.tokens, token)
-			continue
+		default:
+			error_at(tn.code, tn.line, tn.col, "%sは認識できません", string(c))
 		}
-
-		error_at(tn.code, tn.line, tn.col, "%sは認識できません", string(c))
 	}
 	eof_token := &Token{kind: TK_EOF, line: tn.line, col: tn.col}
 	tn.tokens = append(tn.tokens, eof_token)
-
 	return tn.tokens
 }
