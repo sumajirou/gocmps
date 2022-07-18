@@ -24,6 +24,15 @@ type Tokenizer struct {
 	col    int // column number
 }
 
+func contains(list []string, word string) bool {
+	for _, v := range list {
+		if v == word {
+			return true
+		}
+	}
+	return false
+}
+
 func isDigit(c byte) bool {
 	if '0' <= c && c <= '9' {
 		return true
@@ -61,12 +70,7 @@ func isPunct(c byte) bool {
 
 func isKeywords(ident string) bool {
 	keywords := []string{"return", "if", "else", "for", "func"}
-	for _, v := range keywords {
-		if v == ident {
-			return true
-		}
-	}
-	return false
+	return contains(keywords, ident)
 }
 
 func (tn *Tokenizer) peek(n int) string {
@@ -105,19 +109,16 @@ func (tn *Tokenizer) tokenize() []*Token {
 	tn.col = 1
 	for tn.i < len(tn.code) {
 		c := tn.peek(1)[0]
-		// TODO: ファイルの先頭が空行のパターン考慮しろ
-		// Add semicolon before newline
+		// ファイルの先頭が空行
+		if c == '\n' && len(tn.tokens) == 0 {
+			tn.read(1)
+			continue
+		}
 		if c == '\n' {
-			// > 行の最後のトークンが以下のいずれかの場合，その後ろにセミコロンが自動的に挿入される．(識別子, 整数リテラル，浮動小数点リテラル， 虚数リテラル，ルーンリテラル，文字列リテラル,break, continue, fallthrough, return,++, --, ), ], } )
-			// > 複雑な文を1行で記述できるように、区切り記号「）」または「}」の前にセミコロンを省略することができます。
-			//   変数宣言や定数宣言や構造体、ブロックなどで複数の文を1行で書くとき、最後のセミコロンを補完する。
-			//   e.g. func f() {print("a"); panic(nil)}
-			// 第1のケースは字句解析で処理できるが、第2のケースは構文解析が必要。
-			// TODO: 浮動小数点リテラル， 虚数リテラル，ルーンリテラル，文字列リテラルが未実装
-			tk := tn.tokens[len(tn.tokens)-1] // last token in line
-			if tk.kind == TK_IDENT || tk.kind == TK_NUM ||
-				tk.val == "break" || tk.val == "continue" || tk.val == "fallthrough" || tk.val == "return" ||
-				tk.val == "++" || tk.val == "--" || tk.val == ")" || tk.val == "]" || tk.val == "}" {
+			keywords := []string{"break", "continue", "fallthrough", "return", "++", "--", ")", "]", "}"}
+			tk := tn.tokens[len(tn.tokens)-1] // 改行直前のトークン
+			// 特定の条件でセミコロンを自動挿入する
+			if tk.line == tn.line && (tk.kind == TK_IDENT || tk.kind == TK_NUM || contains(keywords, tk.val)) {
 				semicolon := &Token{kind: TK_RESERVED, line: tn.line, col: tn.col + 1, val: ";"}
 				tn.tokens = append(tn.tokens, semicolon)
 			}
@@ -157,7 +158,7 @@ func (tn *Tokenizer) tokenize() []*Token {
 		}
 
 		// Multi-letter punctuators
-		if tn.startswith("==") || tn.startswith("!=") || tn.startswith("<=") || tn.startswith(">=") {
+		if contains([]string{"==", "!=", "<=", ">="}, tn.peek(2)) {
 			token := &Token{kind: TK_RESERVED, line: tn.line, col: tn.col}
 			token.val = tn.read(2)
 			tn.tokens = append(tn.tokens, token)
